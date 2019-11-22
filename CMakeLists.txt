@@ -602,6 +602,9 @@ set(SOURCES
         table/block_based/index_builder.cc
         table/block_based/partitioned_filter_block.cc
         table/block_based/uncompression_dict_reader.cc
+        table/block_based/pilot_block.cc
+        table/block_based/seek_block.cc
+        table/block_based/seek_block_builder.cc
         table/block_fetcher.cc
         table/bloom_block.cc
         table/cuckoo/cuckoo_table_builder.cc
@@ -970,6 +973,7 @@ if(WITH_TESTS)
         table/block_based/data_block_hash_index_test.cc
         table/block_based/full_filter_block_test.cc
         table/block_based/partitioned_filter_block_test.cc
+        table/block_based/seek_block_test.cc
         table/cleanable_test.cc
         table/cuckoo/cuckoo_table_builder_test.cc
         table/cuckoo/cuckoo_table_reader_test.cc

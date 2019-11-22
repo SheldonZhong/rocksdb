@@ -38,6 +38,7 @@
 #include "table/block_based/filter_block.h"
 #include "table/block_based/full_filter_block.h"
 #include "table/block_based/partitioned_filter_block.h"
+#include "table/block_based/pilot_block.h"
 #include "table/format.h"
 #include "table/table_builder.h"
 
@@ -310,6 +311,8 @@ struct BlockBasedTableBuilder::Rep {
   size_t data_begin_offset = 0;
 
   TableProperties props;
+
+  PilotBlockBuilder pilot_builder;
 
   // States of the builder.
   //
@@ -1022,6 +1025,15 @@ void BlockBasedTableBuilder::WriteRangeDelBlock(
   }
 }
 
+void BlockBasedTableBuilder::WritePilotBlock(
+    MetaIndexBuilder* meta_index_builder) {
+  if (ok()) {
+    BlockHandle pilot_handle;
+    WriteRawBlock(rep_->pilot_builder.Finish(), kNoCompression, &pilot_handle);
+    meta_index_builder->Add(kPilotBlock, pilot_handle);
+  }
+}
+
 void BlockBasedTableBuilder::WriteFooter(BlockHandle& metaindex_block_handle,
                                          BlockHandle& index_block_handle) {
   Rep* r = rep_;
@@ -1136,6 +1148,7 @@ Status BlockBasedTableBuilder::Finish() {
   //    3. [meta block: compression dictionary]
   //    4. [meta block: range deletion tombstone]
   //    5. [meta block: properties]
+  //    x. [meta block: pilot]
   //    6. [metaindex block]
   //    7. Footer
   BlockHandle metaindex_block_handle, index_block_handle;
@@ -1145,6 +1158,7 @@ Status BlockBasedTableBuilder::Finish() {
   WriteCompressionDictBlock(&meta_index_builder);
   WriteRangeDelBlock(&meta_index_builder);
   WritePropertiesBlock(&meta_index_builder);
+  WritePilotBlock(&meta_index_builder);
   if (ok()) {
     // flush the meta index block
     WriteRawBlock(meta_index_builder.Finish(), kNoCompression,

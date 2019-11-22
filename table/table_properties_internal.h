@@ -27,4 +27,7 @@ Status SeekToCompressionDictBlock(InternalIterator* meta_iter, bool* is_found,
 Status SeekToRangeDelBlock(InternalIterator* meta_iter, bool* is_found,
                            BlockHandle* block_handle);
 
+Status SeekToPilotBlock(InternalIterator* meta_iter, bool* is_found,
+                        BlockHandle* block_handle);
+
 }  // namespace rocksdb

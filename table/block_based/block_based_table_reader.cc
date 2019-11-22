@@ -3798,6 +3798,10 @@ BlockType BlockBasedTable::GetBlockTypeForMetaBlockByName(
     return BlockType::kRangeDeletion;
   }
 
+  if (meta_block_name == kPilotBlock) {
+    return BlockType::kPilot;
+  }
+
   if (meta_block_name == kHashIndexPrefixesBlock) {
     return BlockType::kHashIndexPrefixes;
   }
@@ -4076,6 +4080,10 @@ Status BlockBasedTable::DumpTable(WritableFile* out_file) {
         out_file->Append("\n");
       } else if (meta_iter->key() == rocksdb::kRangeDelBlock) {
         out_file->Append("  Range deletion block handle: ");
+        out_file->Append(meta_iter->value().ToString(true).c_str());
+        out_file->Append("\n");
+      } else if (meta_iter->key() == rocksdb::kPilotBlock) {
+        out_file->Append("  Pilot block handle: ");
         out_file->Append(meta_iter->value().ToString(true).c_str());
         out_file->Append("\n");
       }
