@@ -1,6 +1,8 @@
 #include "table/block_based/seek_table_builder.h"
 #include "table/block_based/seek_block_builder.h"
 #include "table/block_based/index_builder.h"
+#include "table/block_based/seek_index_builder.h"
+#include "table/seek_meta_blocks.h"
 #include "include/rocksdb/flush_block_policy.h"
 
 namespace rocksdb
@@ -48,8 +50,9 @@ struct SeekTableBuilder::Rep {
         target_file_size(_target_file_size),
         file_creation_time(_file_creation_time),
         block_size(_block_size) {
-            
-        }
+
+    index_builder.reset(new SeekIndexBuilder(&internal_comparator));
+}
 
     Rep(const Rep&) = delete;
     Rep& operator=(const Rep&) = delete;
@@ -62,6 +65,41 @@ Status SeekTableBuilder::Finish() {
     assert(r->state != Rep::State::kClosed);
     bool empty_data_block = r->data_block.empty();
     Flush();
+
+    SeekMetaIndexBuilder meta_index_builder;
+    BlockHandle metaindex_block_handle, index_block_handle;
+
+    WriteIndexBlock(&meta_index_builder, &index_block_handle);
+    WriteRawBlock(meta_index_builder.Finish(), &metaindex_block_handle);
+    WriteFooter(metaindex_block_handle, index_block_handle);
+}
+
+void SeekTableBuilder::WriteFooter(BlockHandle& metaindex_block_handle,
+                                    BlockHandle& index_block_handle) {
+    Rep* r = rep_;
+    Footer footer(kSeekTableMagicNumber, 5);
+    footer.set_metaindex_handle(metaindex_block_handle);
+    footer.set_index_handle(index_block_handle);
+    footer.set_checksum(kCRC32c);
+    std::string footer_encoding;
+    footer.EncodeTo(&footer_encoding);
+    assert(r->status.ok());
+    r->status = r->file->Append(footer_encoding);
+    if (r->status.ok()) {
+        r->offset += footer_encoding.size();
+    }
+}
+void SeekTableBuilder::WriteIndexBlock(
+    SeekMetaIndexBuilder* meta_index_builder, BlockHandle* index_block_handle) {
+    IndexBuilder::IndexBlocks index_blocks;
+    Status index_builder_status = rep_->index_builder->Finish(&index_blocks);
+    assert(index_builder_status.ok());
+    for (const auto& item : index_blocks.meta_blocks) {
+        BlockHandle block_handle;
+        WriteBlock(item.second, &block_handle, false /* is_data_block */);
+        meta_index_builder->Add(item.first, block_handle);
+    }
+    WriteRawBlock(index_blocks.index_block_contents, index_block_handle);
 }
 
 void SeekTableBuilder::Abandon() {
@@ -154,6 +192,8 @@ void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
 
     r->last_key.assign(key.data(), key.size());
     r->data_block.Add(key, value);
+
+    r->index_builder->OnKeyAdded(key);
 
     r->props.num_entries++;
     r->props.raw_key_size += key.size();

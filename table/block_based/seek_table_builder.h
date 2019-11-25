@@ -44,6 +44,12 @@ class SeekTableBuilder : public TableBuilder {
         void WriteBlock(const Slice& block_contents, BlockHandle* handle, bool is_data_block);
 
         void WriteRawBlock(const Slice& data, BlockHandle* handle, bool is_data_block = false);
+
+        void WriteFooter(BlockHandle& metaindex_block_handle,
+                            BlockHandle& index_block_handle);
+        
+        void WriteIndexBlock(SeekMetaIndexBuilder* meta_index_builder,
+                                BlockHandle* index_block_handle);
 };
 
 } // namespace namerocksdb
