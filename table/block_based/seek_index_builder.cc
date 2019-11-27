@@ -22,6 +22,7 @@ void SeekIndexBuilder::AddIndexEntry(std::string* last_key_in_current_block,
     Slice sep = Slice(*last_key_in_current_block);
     IndexValue entry(block_handle, current_block_first_internal_key_);
     std::string encoded_entry;
+    // has first key and previous handle
     entry.EncodeTo(&encoded_entry, false, nullptr);
     index_block_builder_.Add(sep, encoded_entry);
     current_block_first_internal_key_.clear();

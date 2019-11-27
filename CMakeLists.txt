@@ -605,6 +605,10 @@ set(SOURCES
         table/block_based/pilot_block.cc
         table/block_based/seek_block.cc
         table/block_based/seek_block_builder.cc
+        table/block_based/seek_index_builder.cc
+        table/block_based/seek_table_builder.cc
+        table/block_based/seek_table_reader.cc
+        table/seek_meta_blocks.cc
         table/block_fetcher.cc
         table/bloom_block.cc
         table/cuckoo/cuckoo_table_builder.cc

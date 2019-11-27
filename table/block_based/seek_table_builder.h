@@ -1,5 +1,9 @@
 #pragma once
 
+#include "table/block_based/seek_block_builder.h"
+#include "table/seek_meta_blocks.h"
+
+#include "table/format.h"
 #include "table/table_builder.h"
 
 namespace rocksdb

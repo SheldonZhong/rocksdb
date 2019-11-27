@@ -72,6 +72,11 @@ Status SeekTableBuilder::Finish() {
     WriteIndexBlock(&meta_index_builder, &index_block_handle);
     WriteRawBlock(meta_index_builder.Finish(), &metaindex_block_handle);
     WriteFooter(metaindex_block_handle, index_block_handle);
+    return Status::OK();
+}
+
+TableProperties SeekTableBuilder::GetTableProperties() const {
+    return TableProperties();
 }
 
 void SeekTableBuilder::WriteFooter(BlockHandle& metaindex_block_handle,
