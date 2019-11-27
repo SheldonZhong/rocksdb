@@ -1158,7 +1158,7 @@ Status BlockBasedTableBuilder::Finish() {
   WriteCompressionDictBlock(&meta_index_builder);
   WriteRangeDelBlock(&meta_index_builder);
   WritePropertiesBlock(&meta_index_builder);
-  WritePilotBlock(&meta_index_builder);
+  // WritePilotBlock(&meta_index_builder);
   if (ok()) {
     // flush the meta index block
     WriteRawBlock(meta_index_builder.Finish(), kNoCompression,
