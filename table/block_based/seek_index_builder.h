@@ -8,7 +8,8 @@ namespace rocksdb
 
 class SeekIndexBuilder : public IndexBuilder {
     public:
-        explicit SeekIndexBuilder(const InternalKeyComparator* comparator);
+        explicit SeekIndexBuilder(const InternalKeyComparator* comparator)
+            : IndexBuilder(comparator) {}
         void AddIndexEntry(std::string* last_key_in_current_block,
                             const Slice* first_key_index_next_block,
                             const BlockHandle& block_handle) override;
