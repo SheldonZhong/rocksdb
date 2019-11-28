@@ -5,10 +5,10 @@ namespace rocksdb
 {
 
 struct SeekTable::Rep {
-    Rep(const InternalKeyComparator& _internal_comparator, int _level)
-        : internal_comparator(_internal_comparator),
+    Rep(const Comparator& _comparator, int _level)
+        : comparator(_comparator),
         level(_level) {}
-    const InternalKeyComparator& internal_comparator;
+    const Comparator& comparator;
     Status status;
     std::unique_ptr<RandomAccessFileReader> file;
 
@@ -20,7 +20,7 @@ struct SeekTable::Rep {
 
 };
 
-Status SeekTable::Open(const InternalKeyComparator& internal_comparator,
+Status SeekTable::Open(const Comparator& comparator,
                         std::unique_ptr<RandomAccessFileReader>&& file,
                         uint64_t file_size,
                         std::unique_ptr<SeekTable>* table_reader,
@@ -41,7 +41,7 @@ Status SeekTable::Open(const InternalKeyComparator& internal_comparator,
     }
 
     // files are opened footer are initialized.
-    Rep* rep = new SeekTable::Rep(internal_comparator, level);
+    Rep* rep = new SeekTable::Rep(comparator, level);
     rep->file = std::move(file);
     rep->footer = footer;
 
@@ -135,18 +135,18 @@ InternalIterator* SeekTable::NewDataBlockIterator(const BlockHandle& handle,
     BlockContents contents;
     Status s = RetrieveBlock(handle, &contents);
     SeekBlock block(std::move(contents));
-    return block.NewDataIterator(&rep_->internal_comparator, input_iter);
+    return block.NewDataIterator(&rep_->comparator, input_iter);
 }
 
 InternalIterator* SeekTable::IndexReader::NewIterator(IndexBlockIter* iter) {
     const Status s = ReadIndexBlock(table_, &index_block_);
 
-    return index_block_.get()->NewDataIterator(&table_->rep_->internal_comparator);
+    return index_block_.get()->NewDataIterator(&table_->rep_->comparator);
 }
 
 InternalIterator* SeekTable::NewIterator() {
     InternalIterator* index_iter = NewIndexIterator();
-    return new SeekTableIterator(this, rep_->internal_comparator, index_iter);
+    return new SeekTableIterator(this, rep_->comparator, index_iter);
 }
 
 InternalIterator* SeekTable::NewIndexIterator() const {
@@ -174,9 +174,9 @@ void SeekTableIterator::SeekImpl(const Slice* target) {
     bool seek_index = true;
     if (block_iter_.Valid()) {
         if (target) {
-            if (icomp_.Compare(ExtractUserKey(*target),
+            if (comp_.Compare(ExtractUserKey(*target),
                                 block_iter_.user_key()) > 0 &&
-                icomp_.Compare(ExtractUserKey(*target),
+                comp_.Compare(ExtractUserKey(*target),
                                 index_iter_->user_key()) < 0) {
                 seek_index = false;
             }
@@ -195,6 +195,12 @@ void SeekTableIterator::SeekImpl(const Slice* target) {
         }
     }
     InitDataBlock();
+
+    if (target) {
+        block_iter_.Seek(*target);
+    } else {
+        block_iter_.SeekToFirst();
+    }
 }
 
 void SeekTableIterator::InitDataBlock() {

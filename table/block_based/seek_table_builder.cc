@@ -12,13 +12,13 @@ const uint64_t kSeekTableMagicNumber = 0xdbbad01beefe0f44ull;
 
 struct SeekTableBuilder::Rep {
 
-    const InternalKeyComparator& internal_comparator;
+    const Comparator& comparator;
     WritableFileWriter* file;
     uint64_t offset = 0;
     SeekBlockBuilder data_block;
     Status status;
 
-    std::unique_ptr<IndexBuilder> index_builder;
+    std::unique_ptr<SeekIndexBuilder> index_builder;
     
     std::string last_key;
 
@@ -39,10 +39,10 @@ struct SeekTableBuilder::Rep {
 
     uint64_t block_size;
 
-    Rep(const InternalKeyComparator& icomparator, WritableFileWriter* f,
+    Rep(const Comparator& _comparator, WritableFileWriter* f,
         const uint64_t _creation_time, const uint64_t _target_file_size,
         const uint64_t _file_creation_time, const uint64_t _block_size)
-        : internal_comparator(icomparator),
+        : comparator(_comparator),
         file(f),
         data_block(),
         state(State::kOpened),
@@ -51,7 +51,7 @@ struct SeekTableBuilder::Rep {
         file_creation_time(_file_creation_time),
         block_size(_block_size) {
 
-    index_builder.reset(new SeekIndexBuilder(&internal_comparator));
+    index_builder.reset(new SeekIndexBuilder(&comparator));
 }
 
     Rep(const Rep&) = delete;
@@ -96,7 +96,7 @@ void SeekTableBuilder::WriteFooter(BlockHandle& metaindex_block_handle,
 }
 void SeekTableBuilder::WriteIndexBlock(
     SeekMetaIndexBuilder* meta_index_builder, BlockHandle* index_block_handle) {
-    IndexBuilder::IndexBlocks index_blocks;
+    SeekIndexBuilder::IndexBlocks index_blocks;
     Status index_builder_status = rep_->index_builder->Finish(&index_blocks);
     assert(index_builder_status.ok());
     for (const auto& item : index_blocks.meta_blocks) {
@@ -180,10 +180,10 @@ void SeekTableBuilder::WriteRawBlock(const Slice& raw_contents,
 }
 
 SeekTableBuilder::SeekTableBuilder(
-    const InternalKeyComparator& internal_comparator,
+    const Comparator& comparator,
     WritableFileWriter* file) {
         
-    rep_ = new Rep(internal_comparator, file, 0, 0, 0, 4096);
+    rep_ = new Rep(comparator, file, 0, 0, 0, 4096);
 }
 
 void SeekTableBuilder::Add(const Slice& key, const Slice& value) {

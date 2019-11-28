@@ -64,9 +64,7 @@ TEST_F(TableTest, SimpleTest) {
     const Comparator* cmp = BytewiseComparator();
 
     file_writer_.reset(test::GetWritableFileWriter(new test::StringSink(), ""));
-    std::unique_ptr<InternalKeyComparator> internal_cmp(
-        new InternalKeyComparator(BytewiseComparator()));
-    SeekTableBuilder builder(*internal_cmp, file_writer_.get());
+    SeekTableBuilder builder(*cmp, file_writer_.get());
 
     for (int i = 0; i < num_records; i++) {
         builder.Add(keys[i], values[i]);
@@ -83,7 +81,7 @@ TEST_F(TableTest, SimpleTest) {
     
     std::unique_ptr<SeekTable> reader;
 
-    SeekTable::Open(*internal_cmp, std::move(file_reader_),
+    SeekTable::Open(*cmp, std::move(file_reader_),
       static_cast<test::StringSink*>(file_writer_->writable_file())->contents().size(),
       &reader, 0);
     InternalIterator* iter = reader->NewIterator();
@@ -103,11 +101,14 @@ TEST_F(TableTest, SimpleTest) {
       // find a random key in the lookaside array
       int index = rnd.Uniform(num_records);
       Slice k(keys[index]);
+      std::string expected = values[index];
 
       // search in block for this key
       iter->Seek(k);
       ASSERT_TRUE(iter->Valid());
       Slice v = iter->value();
+      Slice key = iter->key();
+      std::cout << key.ToString() << std::endl;
       ASSERT_EQ(v.ToString().compare(values[index]), 0);
     }
     delete iter;

@@ -164,7 +164,6 @@ void SeekDataBlockIter::Seek(const Slice& target) {
         return;
     }
     SeekToRestartPoint(index);
-    assert(Compare(key_, target));
     ParseNextDataKey();
 }
 

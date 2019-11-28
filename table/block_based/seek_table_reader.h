@@ -25,7 +25,7 @@ class SeekTable {
 
         Status DumpTalbe(WritableFile* out_file);
 
-        static Status Open(const InternalKeyComparator& internal_comparator,
+        static Status Open(const Comparator& comparator,
                     std::unique_ptr<RandomAccessFileReader>&& file,
                     uint64_t file_size,
                     std::unique_ptr<SeekTable>* table_reader,
@@ -72,10 +72,10 @@ class SeekTable {
 class SeekTableIterator : public InternalIteratorBase<Slice> {
     public:
         SeekTableIterator(const SeekTable* table,
-                            const InternalKeyComparator& icomp,
+                            const Comparator& comp,
                             InternalIterator* index_iter)
                         : table_(table),
-                        icomp_(icomp),
+                        comp_(comp),
                         index_iter_(index_iter),
                         block_iter_points_to_real_block_(false)
                         {}
@@ -96,7 +96,7 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
 
     private:
         const SeekTable* table_;
-        const InternalKeyComparator& icomp_;
+        const Comparator& comp_;
         InternalIterator* index_iter_;
         SeekDataBlockIter block_iter_;
         bool block_iter_points_to_real_block_;

@@ -15,7 +15,7 @@ class SeekTableBuilder : public TableBuilder {
         SeekTableBuilder() {}
 
         SeekTableBuilder(
-            const InternalKeyComparator& internal_comparator,
+            const Comparator& internal_comparator,
             WritableFileWriter* file);
 
         ~SeekTableBuilder() {}
