@@ -56,7 +56,7 @@ TEST_F(BlockTest, SimpleTest) {
   std::vector<std::string> keys;
   std::vector<std::string> values;
   SeekBlockBuilder builder;
-  int num_records = 1;
+  int num_records = 100000;
 
   GenerateRandomKVs(&keys, &values, 0, num_records);
   // add a bunch of records to a block
