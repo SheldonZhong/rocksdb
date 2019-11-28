@@ -10,7 +10,6 @@ SeekBlockBuilder::SeekBlockBuilder()
     num_entries(0),
     finished_(false) {
 
-    restarts_.push_back(0);
     // one for restart array length
     // the other for restart 0 entry
     estimate_ = sizeof(uint32_t) + sizeof(uint32_t);
@@ -49,13 +48,16 @@ void SeekBlockBuilder::Add(const Slice& key, const Slice& value) {
 void SeekBlockBuilder::Reset() {
     buffer_.clear();
     restarts_.clear();
-    restarts_.push_back(0);
     estimate_ = sizeof(uint32_t) + sizeof(uint32_t); // why there are two??
     num_entries = 0;
     finished_ = false;
 }
 
 Slice SeekBlockBuilder::Finish() {
+    if (restarts_.size() == 0) {
+        restarts_.push_back(0);
+    }
+
     for (size_t i = 0; i < restarts_.size(); i++) {
         PutFixed32(&buffer_, restarts_[i]);
     }

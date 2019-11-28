@@ -56,7 +56,7 @@ TEST_F(BlockTest, SimpleTest) {
   std::vector<std::string> keys;
   std::vector<std::string> values;
   SeekBlockBuilder builder;
-  int num_records = 100000;
+  int num_records = 1;
 
   GenerateRandomKVs(&keys, &values, 0, num_records);
   // add a bunch of records to a block
@@ -86,10 +86,22 @@ TEST_F(BlockTest, SimpleTest) {
     ASSERT_EQ(k.ToString().compare(keys[count]), 0);
     ASSERT_EQ(v.ToString().compare(values[count]), 0);
   }
-  delete iter;
+  ASSERT_EQ(num_records, count);
+  // delete iter;
 
   // read block contents randomly
-  iter = reader.NewDataIterator(cmp);
+  // iter = reader.NewDataIterator(cmp);
+  count = 0;
+  for (iter->SeekToFirst(); iter->Valid(); count++, iter->Next()) {
+    // read kv from block
+    Slice k = iter->key();
+    Slice v = iter->value();
+
+    // compare with lookaside array
+    ASSERT_EQ(k.ToString().compare(keys[count]), 0);
+    ASSERT_EQ(v.ToString().compare(values[count]), 0);
+  }
+  ASSERT_EQ(num_records, count);
   for (int i = 0; i < num_records; i++) {
     // find a random key in the lookaside array
     int index = rnd.Uniform(num_records);
