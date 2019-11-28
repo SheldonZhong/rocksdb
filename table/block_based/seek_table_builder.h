@@ -12,6 +12,12 @@ extern const uint64_t kSeekTableMagicNumber;
 
 class SeekTableBuilder : public TableBuilder {
     public:
+        SeekTableBuilder() {}
+
+        SeekTableBuilder(
+            const InternalKeyComparator& internal_comparator,
+            WritableFileWriter* file);
+
         ~SeekTableBuilder() {}
 
         SeekTableBuilder(const SeekTableBuilder&) = delete;

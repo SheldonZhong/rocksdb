@@ -25,7 +25,7 @@ class SeekTable {
 
         Status DumpTalbe(WritableFile* out_file);
 
-        Status Open(const InternalKeyComparator& internal_comparator,
+        static Status Open(const InternalKeyComparator& internal_comparator,
                     std::unique_ptr<RandomAccessFileReader>&& file,
                     uint64_t file_size,
                     std::unique_ptr<SeekTable>* table_reader,
@@ -33,11 +33,21 @@ class SeekTable {
 
         class IndexReader {
             public:
+                IndexReader(const SeekTable* t,
+                            SeekBlock* index_block)
+                    : table_(t), index_block_(index_block) {
+                    assert(table_);
+                }
                 InternalIterator* NewIterator(
                     IndexBlockIter* iter
                 );
 
-                Status ReadIndexBlock(const SeekTable* table);
+                static Status ReadIndexBlock(const SeekTable* table,
+                                            std::unique_ptr<SeekBlock>* index_block);
+
+                static Status Create(
+                                SeekTable* table,
+                                std::unique_ptr<IndexReader>* index_reader);
 
             private:
                 const SeekTable* table_;

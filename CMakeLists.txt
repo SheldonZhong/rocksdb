@@ -978,6 +978,7 @@ if(WITH_TESTS)
         table/block_based/full_filter_block_test.cc
         table/block_based/partitioned_filter_block_test.cc
         table/block_based/seek_block_test.cc
+        table/seek_table_test.cc
         table/cleanable_test.cc
         table/cuckoo/cuckoo_table_builder_test.cc
         table/cuckoo/cuckoo_table_reader_test.cc

@@ -179,6 +179,13 @@ void SeekTableBuilder::WriteRawBlock(const Slice& raw_contents,
     }
 }
 
+SeekTableBuilder::SeekTableBuilder(
+    const InternalKeyComparator& internal_comparator,
+    WritableFileWriter* file) {
+        
+    rep_ = new Rep(internal_comparator, file, 0, 0, 0, 4096);
+}
+
 void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
     Rep* r = rep_;
 
