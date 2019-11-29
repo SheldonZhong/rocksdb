@@ -100,30 +100,16 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle, BlockContents* conten
         delete[] buf;
         return Status::Corruption("block checksum mismatch");
     }
-    delete[] buf;
-    contents->data = Slice(data, n);
 
-    return s;
-}
-
-Status SeekTable::IndexReader::Create(
-                                SeekTable* table,
-                                std::unique_ptr<SeekTable::IndexReader>* index_reader) {
-    assert(table);
-    assert(table->get_rep());
-    assert(index_reader);
-    std::unique_ptr<SeekBlock> index_block;
-    const Status s = ReadIndexBlock(table, &index_block);
-
-    if (!s.ok()) {
-        return s;
+    if (data != buf) {
+        delete[] buf;
+        contents->data = Slice(data, n);
+        // might be leak here
+    } else {
+        contents->data = Slice(buf, n);
     }
 
-    index_reader->reset(
-        new IndexReader(table, index_block.get())
-    );
-
-    return Status::OK();
+    return s;
 }
 
 Status SeekTable::CreateIndexReader(std::unique_ptr<IndexReader>* index_reader) {
@@ -138,12 +124,6 @@ InternalIterator* SeekTable::NewDataBlockIterator(const BlockHandle& handle,
     return block.NewDataIterator(&rep_->comparator, input_iter);
 }
 
-InternalIterator* SeekTable::IndexReader::NewIterator(IndexBlockIter* iter) {
-    const Status s = ReadIndexBlock(table_, &index_block_);
-
-    return index_block_.get()->NewDataIterator(&table_->rep_->comparator);
-}
-
 InternalIterator* SeekTable::NewIterator() {
     InternalIterator* index_iter = NewIndexIterator();
     return new SeekTableIterator(this, rep_->comparator, index_iter);
@@ -154,16 +134,41 @@ InternalIterator* SeekTable::NewIndexIterator() const {
 }
 
 Status SeekTable::IndexReader::ReadIndexBlock(const SeekTable* table,
-                                            std::unique_ptr<SeekBlock>* index_block) {
+                                            SeekBlock** index_block) {
     // how to return block from the function? The behavior in rocksdb is hard to understand.
     assert(table != nullptr);
+    assert(index_block);
     const Rep* const rep = table->get_rep();
     assert(rep != nullptr);
     BlockContents contents;
     const Status s = table->RetrieveBlock(rep->footer.index_handle(), &contents);
-    index_block->reset(new SeekBlock(std::move(contents)));
+    *index_block = new SeekBlock(std::move(contents));
 
     return s;
+}
+
+Status SeekTable::IndexReader::Create(
+                                SeekTable* table,
+                                std::unique_ptr<SeekTable::IndexReader>* index_reader) {
+    assert(table);
+    assert(table->get_rep());
+    assert(index_reader);
+    SeekBlock* index_block;
+    const Status s = ReadIndexBlock(table, &index_block);
+
+    if (!s.ok()) {
+        return s;
+    }
+
+    index_reader->reset(
+        new IndexReader(table, index_block)
+    );
+
+    return Status::OK();
+}
+
+InternalIterator* SeekTable::IndexReader::NewIterator(SeekDataBlockIter* iter) {
+    return index_block_.get()->NewDataIterator(&table_->rep_->comparator, iter);
 }
 
 void SeekTableIterator::Seek(const Slice& target) {

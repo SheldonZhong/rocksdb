@@ -94,6 +94,7 @@ TEST_F(TableTest, SimpleTest) {
       ASSERT_EQ(k.ToString().compare(keys[count]), 0);
       ASSERT_EQ(v.ToString().compare(values[count]), 0);
     }
+    ASSERT_EQ(num_records, count);
 
     iter->SeekToFirst();
 

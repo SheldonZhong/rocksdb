@@ -23,7 +23,7 @@ class SeekTable {
 
         void MultiGet();
 
-        Status DumpTalbe(WritableFile* out_file);
+        Status DumpTable(WritableFile* out_file);
 
         static Status Open(const Comparator& comparator,
                     std::unique_ptr<RandomAccessFileReader>&& file,
@@ -38,12 +38,13 @@ class SeekTable {
                     : table_(t), index_block_(index_block) {
                     assert(table_);
                 }
+
                 InternalIterator* NewIterator(
-                    IndexBlockIter* iter
+                    SeekDataBlockIter* iter
                 );
 
                 static Status ReadIndexBlock(const SeekTable* table,
-                                            std::unique_ptr<SeekBlock>* index_block);
+                                            SeekBlock** index_block);
 
                 static Status Create(
                                 SeekTable* table,
