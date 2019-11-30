@@ -179,10 +179,10 @@ void SeekTableIterator::SeekImpl(const Slice* target) {
     bool seek_index = true;
     if (block_iter_.Valid()) {
         if (target) {
-            if (comp_.Compare(ExtractUserKey(*target),
-                                block_iter_.user_key()) > 0 &&
-                comp_.Compare(ExtractUserKey(*target),
-                                index_iter_->user_key()) < 0) {
+            if (comp_.Compare(*target,
+                                block_iter_.key()) > 0 &&
+                comp_.Compare(*target,
+                                index_iter_->key()) < 0) {
                 seek_index = false;
             }
         }
@@ -225,12 +225,14 @@ void SeekTableIterator::Next() {
     block_iter_.Next();
     if (!block_iter_.Valid()) {
         index_iter_->Next();
+        if (index_iter_->Valid()) {
+            InitDataBlock();
+            block_iter_.SeekToFirst();
+        }
     }
     if (!index_iter_->Valid()) {
         return;
     }
-    InitDataBlock();
-    block_iter_.SeekToFirst();
 }
 
 bool SeekTableIterator::NextAndGetResult(IterateResult* result) {

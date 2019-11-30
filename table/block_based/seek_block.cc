@@ -125,7 +125,7 @@ bool SeekDataBlockIter::BinarySeek(const Slice& target, uint32_t left,
                                 const Comparator* comp) {
     assert(left <= right);
     while (left < right) {
-        uint32_t mid = (left + right + 1) / 2;
+        uint32_t mid = (left + right) / 2;
         // so left and right should be the sequence nubmer
         // of the restart points
         uint32_t region_offset = GetRestartPoint(mid);
@@ -141,11 +141,11 @@ bool SeekDataBlockIter::BinarySeek(const Slice& target, uint32_t left,
         if (cmp < 0) {
             // Key at "mid" is smaller than "target". Therefore all
             // blocks before "mid" are uninteresting.
-            left = mid;
+            left = mid + 1;
         } else if (cmp > 0) {
             // Key at "mid" is >= "target". Therefore all blocks at or
             // after "mid" are uninteresting.
-            right = mid - 1;
+            right = mid;
         } else {
             left = right = mid;
         }
@@ -159,7 +159,7 @@ void SeekDataBlockIter::Seek(const Slice& target) {
         return;
     }
     uint32_t index = 0;
-    bool ok = BinarySeek(target, 0, num_restarts_ - 1, &index, comparator_);
+    bool ok = BinarySeek(target, 0, num_restarts_, &index, comparator_);
     if (!ok) {
         return;
     }

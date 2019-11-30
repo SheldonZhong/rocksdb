@@ -66,6 +66,10 @@ Status SeekTableBuilder::Finish() {
     bool empty_data_block = r->data_block.empty();
     Flush();
 
+    if (ok() && !empty_data_block) {
+        r->index_builder->AddIndexEntry(&r->last_key, nullptr, r->pending_handle);
+    }
+
     SeekMetaIndexBuilder meta_index_builder;
     BlockHandle metaindex_block_handle, index_block_handle;
 
@@ -197,7 +201,6 @@ void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
         Flush();
 
         if (ok()) {
-
             r->index_builder->AddIndexEntry(&r->last_key, &key, r->pending_handle);
         }
     }
