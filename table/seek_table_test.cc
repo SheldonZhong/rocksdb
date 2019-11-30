@@ -96,20 +96,14 @@ TEST_F(TableTest, SimpleTest) {
     }
     ASSERT_EQ(num_records, count);
 
-    iter->SeekToFirst();
-
     for (int i = 0; i < num_records; i++) {
       // find a random key in the lookaside array
       int index = rnd.Uniform(num_records);
       Slice k(keys[index]);
-      std::string expected = values[index];
-
       // search in block for this key
       iter->Seek(k);
       ASSERT_TRUE(iter->Valid());
       Slice v = iter->value();
-      Slice key = iter->key();
-      std::cout << key.ToString() << std::endl;
       ASSERT_EQ(v.ToString().compare(values[index]), 0);
     }
     delete iter;
