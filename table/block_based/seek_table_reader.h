@@ -5,9 +5,12 @@
 
 namespace rocksdb
 {
+
+class SeekTableIterator;
 class SeekTable {
     public:
-        InternalIterator* NewIterator();
+        InternalIterator* NewIterator() const ;
+        SeekTableIterator* NewSeekTableIter() const;
 
         uint64_t ApproximateOffsetOf(const Slice& key);
 
@@ -39,7 +42,7 @@ class SeekTable {
                     assert(table_);
                 }
 
-                InternalIterator* NewIterator(
+                SeekDataBlockIter* NewIterator(
                     SeekDataBlockIter* iter
                 );
 
@@ -67,14 +70,14 @@ class SeekTable {
         Status CreateIndexReader(std::unique_ptr<IndexReader>* index_reader);
         Status RetrieveBlock(const BlockHandle& handle, BlockContents* contents) const;
 
-        InternalIterator* NewIndexIterator() const;
+        SeekDataBlockIter* NewIndexIterator() const;
 };
 
 class SeekTableIterator : public InternalIteratorBase<Slice> {
     public:
         SeekTableIterator(const SeekTable* table,
                             const Comparator& comp,
-                            InternalIterator* index_iter)
+                            SeekDataBlockIter* index_iter)
                         : table_(table),
                         comp_(comp),
                         index_iter_(index_iter),
@@ -93,12 +96,15 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
         Slice key() const override;
         Slice value() const override;
         Status status() const override;
+
+        uint32_t GetIndexBlock() const;
+        uint32_t GetDataBlock() const;
         
 
     private:
         const SeekTable* table_;
         const Comparator& comp_;
-        InternalIterator* index_iter_;
+        SeekDataBlockIter* index_iter_;
         SeekDataBlockIter block_iter_;
         bool block_iter_points_to_real_block_;
         void SeekImpl(const Slice* target);

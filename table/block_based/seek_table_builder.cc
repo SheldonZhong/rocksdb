@@ -2,13 +2,30 @@
 #include "table/block_based/seek_block_builder.h"
 #include "table/block_based/index_builder.h"
 #include "table/block_based/seek_index_builder.h"
+#include "table/block_based/pilot_block.h"
 #include "table/seek_meta_blocks.h"
-#include "include/rocksdb/flush_block_policy.h"
+#include "util/heap.h"
 
 namespace rocksdb
 {
 
 const uint64_t kSeekTableMagicNumber = 0xdbbad01beefe0f44ull;
+const std::string kPilotBlockMetaIndexKey = "pilots";
+
+struct IterComparator {
+    IterComparator(const Comparator& _comparator)
+        : comparator(_comparator) {}
+
+    // implement greater than
+    inline bool operator()(SeekTableIterator* a,
+                            SeekTableIterator* b) const {
+        return comparator.Compare(a->key(), b->key()) > 0;
+    }
+
+    const Comparator& comparator;
+};
+
+typedef BinaryHeap<SeekTableIterator*, IterComparator> minHeap;
 
 struct SeekTableBuilder::Rep {
 
@@ -19,7 +36,15 @@ struct SeekTableBuilder::Rep {
     Status status;
 
     std::unique_ptr<SeekIndexBuilder> index_builder;
-    
+
+    std::vector<const SeekTable*> children;
+    std::vector<SeekTableIterator*> children_iter;
+
+    std::unique_ptr<minHeap> iter_heap;
+    std::map<SeekTableIterator*, uint8_t> iter_map;
+
+    std::unique_ptr<PilotBlockBuilder> pilot_builder;
+
     std::string last_key;
 
     TableProperties props;
@@ -41,10 +66,12 @@ struct SeekTableBuilder::Rep {
 
     Rep(const Comparator& _comparator, WritableFileWriter* f,
         const uint64_t _creation_time, const uint64_t _target_file_size,
-        const uint64_t _file_creation_time, const uint64_t _block_size)
+        const uint64_t _file_creation_time, const uint64_t _block_size,
+        const SeekTable** lower_levels, int n)
         : comparator(_comparator),
         file(f),
         data_block(),
+        iter_heap(new minHeap(comparator)),
         state(State::kOpened),
         creation_time(_creation_time),
         target_file_size(_target_file_size),
@@ -52,6 +79,20 @@ struct SeekTableBuilder::Rep {
         block_size(_block_size) {
 
     index_builder.reset(new SeekIndexBuilder(&comparator));
+
+    if (lower_levels != nullptr && n > 0) {
+        children.resize(n);
+        children_iter.resize(n);
+        for (int i = 0; i < n; i++) {
+            children[i] = lower_levels[i];
+            children_iter[i] = children[i]->NewSeekTableIter();
+            children_iter[i]->SeekToFirst();
+            iter_map[children_iter[i]] = static_cast<uint8_t>(i);
+            iter_heap->push(children_iter[i]);
+        }
+
+        pilot_builder.reset(new PilotBlockBuilder());
+    }
 }
 
     Rep(const Rep&) = delete;
@@ -74,6 +115,9 @@ Status SeekTableBuilder::Finish() {
     BlockHandle metaindex_block_handle, index_block_handle;
 
     WriteIndexBlock(&meta_index_builder, &index_block_handle);
+    if (rep_->pilot_builder.get() != nullptr) {
+        WritePilotBlock(&meta_index_builder);
+    }
     WriteRawBlock(meta_index_builder.Finish(), &metaindex_block_handle);
     WriteFooter(metaindex_block_handle, index_block_handle);
     return Status::OK();
@@ -109,6 +153,14 @@ void SeekTableBuilder::WriteIndexBlock(
         meta_index_builder->Add(item.first, block_handle);
     }
     WriteRawBlock(index_blocks.index_block_contents, index_block_handle);
+}
+
+void SeekTableBuilder::WritePilotBlock(
+    SeekMetaIndexBuilder* meta_index_builder) {
+    Slice pilots = rep_->pilot_builder->Finish();
+    BlockHandle block_handle;
+    WriteRawBlock(pilots, &block_handle);
+    meta_index_builder->Add(kPilotBlockMetaIndexKey, block_handle);
 }
 
 void SeekTableBuilder::Abandon() {
@@ -185,9 +237,11 @@ void SeekTableBuilder::WriteRawBlock(const Slice& raw_contents,
 
 SeekTableBuilder::SeekTableBuilder(
     const Comparator& comparator,
-    WritableFileWriter* file) {
-        
-    rep_ = new Rep(comparator, file, 0, 0, 0, 4096);
+    WritableFileWriter* file,
+    const SeekTable** lower_levels, int n) {
+
+    rep_ = new Rep(comparator, file, 0, 0, 0, 4096,
+                lower_levels, n);
 }
 
 void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
@@ -213,6 +267,36 @@ void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
     r->props.num_entries++;
     r->props.raw_key_size += key.size();
     r->props.raw_value_size += value.size();
+
+    if (r->pilot_builder.get() == nullptr) {
+        return;
+    }
+    assert(!r->children_iter.empty());
+
+    
+    std::vector<uint8_t> levels;
+    while (true) {
+        SeekTableIterator* ptr = r->iter_heap->top();
+        if (r->comparator.Compare(ptr->key(), key) < 0) {
+            ptr->Next();
+            r->iter_heap->replace_top(ptr);
+            uint8_t idx = r->iter_map[ptr];
+            levels.push_back(idx);
+        } else {
+            break;
+        }
+    }
+
+    std::vector<uint32_t> index_block;
+    std::vector<uint32_t> data_block;
+    for (size_t i = 0; i < r->children_iter.size(); i++) {
+        uint32_t index = r->children_iter[i]->GetIndexBlock();
+        uint32_t data = r->children_iter[i]->GetDataBlock();
+        index_block.push_back(index);
+        data_block.push_back(data);
+    }
+    r->pilot_builder->AddPilotEntry(key, index_block,
+                                data_block, levels);
 }
 
 } // namespace name rocksdb

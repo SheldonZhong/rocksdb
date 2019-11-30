@@ -2,6 +2,7 @@
 
 #include "table/block_based/seek_block_builder.h"
 #include "table/seek_meta_blocks.h"
+#include "table/block_based/seek_table_reader.h"
 
 #include "table/format.h"
 #include "table/table_builder.h"
@@ -15,8 +16,9 @@ class SeekTableBuilder : public TableBuilder {
         SeekTableBuilder() {}
 
         SeekTableBuilder(
-            const Comparator& internal_comparator,
-            WritableFileWriter* file);
+            const Comparator& comparator,
+            WritableFileWriter* file,
+            const SeekTable** lower_tables = nullptr, int n = 0);
 
         ~SeekTableBuilder() {}
 
@@ -60,6 +62,8 @@ class SeekTableBuilder : public TableBuilder {
         
         void WriteIndexBlock(SeekMetaIndexBuilder* meta_index_builder,
                                 BlockHandle* index_block_handle);
+
+        void WritePilotBlock(SeekMetaIndexBuilder* metaindex_block_handle);
 };
 
 } // namespace namerocksdb

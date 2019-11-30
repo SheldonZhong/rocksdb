@@ -124,12 +124,16 @@ InternalIterator* SeekTable::NewDataBlockIterator(const BlockHandle& handle,
     return block.NewDataIterator(&rep_->comparator, input_iter);
 }
 
-InternalIterator* SeekTable::NewIterator() {
-    InternalIterator* index_iter = NewIndexIterator();
+InternalIterator* SeekTable::NewIterator() const {
+    return NewSeekTableIter();
+}
+
+SeekTableIterator* SeekTable::NewSeekTableIter() const {
+    SeekDataBlockIter* index_iter = NewIndexIterator();
     return new SeekTableIterator(this, rep_->comparator, index_iter);
 }
 
-InternalIterator* SeekTable::NewIndexIterator() const {
+SeekDataBlockIter* SeekTable::NewIndexIterator() const {
     return rep_->index_reader->NewIterator(nullptr);
 }
 
@@ -167,7 +171,7 @@ Status SeekTable::IndexReader::Create(
     return Status::OK();
 }
 
-InternalIterator* SeekTable::IndexReader::NewIterator(SeekDataBlockIter* iter) {
+SeekDataBlockIter* SeekTable::IndexReader::NewIterator(SeekDataBlockIter* iter) {
     return index_block_.get()->NewDataIterator(&table_->rep_->comparator, iter);
 }
 
@@ -266,6 +270,14 @@ Status SeekTableIterator::status() const {
     } else {
         return Status::OK();
     }
+}
+
+uint32_t SeekTableIterator::GetIndexBlock() const {
+    return index_iter_->GetRestartIndex();
+}
+
+uint32_t SeekTableIterator::GetDataBlock() const {
+    return block_iter_.GetRestartIndex();
 }
 
 } // namespace rocksdb

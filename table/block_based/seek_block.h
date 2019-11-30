@@ -64,7 +64,6 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
 
         void SeekToRestartPoint(uint32_t index) {
             key_.Clear();
-            // what for?
             restart_index_ = index;
 
             uint32_t offset = GetRestartPoint(index);
@@ -90,20 +89,22 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
             return comparator_->Compare(ikey.GetInternalKey(), b);
         }
 
+        inline bool ParseNextDataKey(const char* limit = nullptr);
+
+        inline uint32_t GetRestartIndex() const { return restart_index_; }
+
     private:
         const Comparator* comparator_;
         const char* data_; // block contents
         uint32_t num_restarts_;
 
-        uint32_t restart_index_; // unknown in rocksdb
+        uint32_t restart_index_; // current index
 
         uint32_t restarts_; // offset of restart array (where does restarts array start)
         uint32_t current_; // offset in data_ of current entry.
         IterKey key_;
         Slice value_;
         Status status_;
-
-        inline bool ParseNextDataKey(const char* limit = nullptr);
 };
 
 
