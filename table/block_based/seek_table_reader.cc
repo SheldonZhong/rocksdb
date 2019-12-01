@@ -15,6 +15,7 @@ struct SeekTable::Rep {
     Footer footer;
 
     std::unique_ptr<IndexReader> index_reader;
+    std::unique_ptr<InternalIterator> pilot_block;
 
     int level;
 
@@ -57,12 +58,34 @@ Status SeekTable::Open(const Comparator& comparator,
     rep->index_reader = std::move(index_reader);
 
     // read metaindex
-    // std::unique_ptr<Block> meta;
-    // std::unique_ptr<InternalIterator> meta_iter;
-    // s = new_table->ReadMetaBlock(&meta, &meta_iter);
-    // if (!s.ok()) {
-        // return s;
-    // }
+    std::unique_ptr<SeekBlock> meta;
+    std::unique_ptr<InternalIterator> meta_iter;
+
+    s = new_table->ReadMetaBlock(&meta, &meta_iter);
+    if (!s.ok()) {
+        return s;
+    }
+
+    meta_iter->Seek(kPilotBlock);
+    if (meta_iter->Valid() &&
+        meta_iter->key().ToString().compare(kPilotBlock) == 0) {
+        BlockHandle pilot_handle;
+
+        Slice v = meta_iter->value();
+        s = pilot_handle.DecodeFrom(&v);
+        if (!s.ok()) {
+            return s;
+        }
+
+        std::unique_ptr<SeekBlock> pilot_block;
+        std::unique_ptr<InternalIterator> pilot_iter;
+        s = new_table->ReadPilotBlock(pilot_handle, &pilot_block, &pilot_iter);
+        if (!s.ok()) {
+            return s;
+        }
+
+        rep->pilot_block = std::move(pilot_iter);
+    }
 
     // populate table_properties and some fields
 
@@ -112,6 +135,27 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle, BlockContents* conten
     return s;
 }
 
+Status SeekTable::ReadMetaBlock(std::unique_ptr<SeekBlock>* meta_block,
+                                std::unique_ptr<InternalIterator>* iter) {
+    BlockContents contents;
+    Status s = RetrieveBlock(rep_->footer.metaindex_handle(), &contents);
+
+    meta_block->reset(new SeekBlock(std::move(contents)));
+    // global one bytewise comparator
+    iter->reset(meta_block->get()->NewDataIterator(&rep_->comparator));
+    return s;
+}
+
+Status SeekTable::ReadPilotBlock(const BlockHandle& handle,
+                                std::unique_ptr<SeekBlock>* pilot_block,
+                                std::unique_ptr<InternalIterator>* iter) {
+    BlockContents contents;
+    Status s = RetrieveBlock(handle, &contents);
+    pilot_block->reset(new SeekBlock(std::move(contents)));
+    iter->reset(pilot_block->get()->NewDataIterator(&rep_->comparator));
+    return s;
+}
+
 Status SeekTable::CreateIndexReader(std::unique_ptr<IndexReader>* index_reader) {
     return IndexReader::Create(this, index_reader);
 }
@@ -120,6 +164,9 @@ InternalIterator* SeekTable::NewDataBlockIterator(const BlockHandle& handle,
                                                 SeekDataBlockIter* input_iter) const {
     BlockContents contents;
     Status s = RetrieveBlock(handle, &contents);
+    if (!s.ok()) {
+        return nullptr;
+    }
     SeekBlock block(std::move(contents));
     return block.NewDataIterator(&rep_->comparator, input_iter);
 }
@@ -164,9 +211,7 @@ Status SeekTable::IndexReader::Create(
         return s;
     }
 
-    index_reader->reset(
-        new IndexReader(table, index_block)
-    );
+    index_reader->reset(new IndexReader(table, index_block));
 
     return Status::OK();
 }

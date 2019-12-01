@@ -10,7 +10,6 @@ namespace rocksdb
 {
 
 const uint64_t kSeekTableMagicNumber = 0xdbbad01beefe0f44ull;
-const std::string kPilotBlockMetaIndexKey = "pilots";
 
 struct IterComparator {
     IterComparator(const Comparator& _comparator)
@@ -118,6 +117,7 @@ Status SeekTableBuilder::Finish() {
     if (rep_->pilot_builder.get() != nullptr) {
         WritePilotBlock(&meta_index_builder);
     }
+    meta_index_builder.Add("dummy meta data", index_block_handle);
     WriteRawBlock(meta_index_builder.Finish(), &metaindex_block_handle);
     WriteFooter(metaindex_block_handle, index_block_handle);
     return Status::OK();
@@ -160,7 +160,7 @@ void SeekTableBuilder::WritePilotBlock(
     Slice pilots = rep_->pilot_builder->Finish();
     BlockHandle block_handle;
     WriteRawBlock(pilots, &block_handle);
-    meta_index_builder->Add(kPilotBlockMetaIndexKey, block_handle);
+    meta_index_builder->Add(kPilotBlock, block_handle);
 }
 
 void SeekTableBuilder::Abandon() {

@@ -163,7 +163,12 @@ void SeekDataBlockIter::Seek(const Slice& target) {
     if (!ok) {
         return;
     }
-    SeekToRestartPoint(index);
+    // out of bound
+    if (index >= num_restarts_) {
+        SeekToLast();
+    } else {
+        SeekToRestartPoint(index);
+    }
     ParseNextDataKey();
 }
 

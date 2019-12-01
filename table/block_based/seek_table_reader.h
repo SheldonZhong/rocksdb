@@ -68,6 +68,13 @@ class SeekTable {
         explicit SeekTable(Rep* rep) : rep_(rep) {}
 
         Status CreateIndexReader(std::unique_ptr<IndexReader>* index_reader);
+        Status ReadMetaBlock(std::unique_ptr<SeekBlock>* meta_block,
+                            std::unique_ptr<InternalIterator>* iter);
+
+        Status ReadPilotBlock(const BlockHandle& handle,
+                            std::unique_ptr<SeekBlock>* pilot_block,
+                            std::unique_ptr<InternalIterator>* iter);
+
         Status RetrieveBlock(const BlockHandle& handle, BlockContents* contents) const;
 
         SeekDataBlockIter* NewIndexIterator() const;
