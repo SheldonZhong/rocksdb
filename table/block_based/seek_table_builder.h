@@ -52,6 +52,8 @@ class SeekTableBuilder : public TableBuilder {
 
         void Flush();
 
+        void BuildPilot(const Slice& key);
+
         void WriteBlock(SeekBlockBuilder* block, BlockHandle* handle, bool is_data_block);
         void WriteBlock(const Slice& block_contents, BlockHandle* handle, bool is_data_block);
 

@@ -46,58 +46,12 @@ SeekDataBlockIter* SeekBlock::NewDataIterator(const Comparator* cmp, SeekDataBlo
     return ret_iter;
 }
 
-static inline const char* DecodeEntry(const char* p, const char* limit,
-                                        uint32_t* key_length,
-                                        uint32_t* value_length) {
-    assert(limit - p >= 2);
-    // fast path for varint
-    // 2 bytes 
-    if ((p = GetVarint32Ptr(p, limit, key_length)) == nullptr) return nullptr;
-    if ((p = GetVarint32Ptr(p, limit, value_length)) == nullptr) return nullptr;
-
-    // enough room for the actual key and value
-    assert(!(static_cast<uint32_t>(limit - p) < (*key_length + *value_length)));
-    return p;
-}
-
 void SeekDataBlockIter::CorruptionError() {
     current_ = restarts_;
     restart_index_ = num_restarts_;
     status_ = Status::Corruption("bad entry in block");
     key_.Clear();
     value_.clear();
-}
-
-bool SeekDataBlockIter::ParseNextDataKey(const char* limit) {
-    current_ = NextEntryOffset();
-    const char* p = data_ + current_;
-    if (!limit) {
-        // if limit is not specified
-        // the limit goes all the way to the end
-        limit = data_ + restarts_; //
-    }
-
-    if (p >= limit) {
-        // no more entries, mark as invalid
-        current_ = restarts_;
-        restart_index_ = num_restarts_;
-        return false;
-    }
-    
-    uint32_t key_length, value_length;
-    p = DecodeEntry(p, limit, &key_length, &value_length);
-
-    if (p == nullptr) {
-        CorruptionError();
-        return false;
-    }
-
-    key_.SetKey(Slice(p, key_length), true /* copy */);
-    value_ = Slice(p + key_length, value_length);
-
-    restart_index_++;
-
-    return true;
 }
 
 void SeekDataBlockIter::SeekToFirst() {

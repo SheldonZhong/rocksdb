@@ -44,6 +44,8 @@ class PilotBlockBuilder {
                             std::vector<uint32_t>& data_block,
                             std::vector<uint8_t>& levels);
 
+        void AddFirstEntry(std::vector<uint8_t>& levels);
+
         Slice Finish();
 
         bool empty() const { return pilot_block_->empty(); }

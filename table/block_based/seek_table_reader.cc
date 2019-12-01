@@ -317,6 +317,28 @@ Status SeekTableIterator::status() const {
     }
 }
 
+void SeekTableIterator::FollowAndGetPilot(PilotValue* pilot) {
+    if (pilot_iter_ == nullptr || pilot == nullptr) {
+        return;
+    }
+
+    assert(Valid());
+    Slice k = key();
+    pilot_iter_->Seek(k);
+    assert(pilot_iter_->Valid());
+    assert(k.compare(pilot_iter_->key()) == 0);
+    GetPilot(pilot);
+}
+
+void SeekTableIterator::GetPilot(PilotValue* pilot) {
+    if (pilot_iter_ == nullptr || pilot == nullptr) {
+        return;
+    }
+
+    Slice v = pilot_iter_->value();
+    pilot->DecodeFrom(&v);
+}
+
 uint32_t SeekTableIterator::GetIndexBlock() const {
     return index_iter_->GetRestartIndex();
 }

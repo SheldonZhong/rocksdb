@@ -100,6 +100,48 @@ struct SeekTableBuilder::Rep {
     ~Rep() {}
 };
 
+void SeekTableBuilder::BuildPilot(const Slice& key) {
+    Rep* r = rep_;
+    if (r->pilot_builder.get() == nullptr) {
+        return;
+    }
+
+    assert(!r->children_iter.empty());
+
+    std::vector<uint8_t> levels;
+    while (!r->iter_heap->empty()) {
+        SeekTableIterator* ptr = r->iter_heap->top();
+        if (r->comparator.Compare(ptr->key(), key) < 0) {
+            ptr->Next();
+            if (ptr->Valid()) {
+                r->iter_heap->replace_top(ptr);
+            } else {
+                r->iter_heap->pop();
+            }
+            uint8_t idx = r->iter_map[ptr];
+            levels.push_back(idx);
+        } else {
+            break;
+        }
+    }
+
+    if (r->pilot_builder.get()->empty()) {
+        r->pilot_builder->AddFirstEntry(levels);
+        return;
+    }
+
+    std::vector<uint32_t> index_block;
+    std::vector<uint32_t> data_block;
+    for (size_t i = 0; i < r->children_iter.size(); i++) {
+        uint32_t index = r->children_iter[i]->GetIndexBlock();
+        uint32_t data = r->children_iter[i]->GetDataBlock();
+        index_block.push_back(index);
+        data_block.push_back(data);
+    }
+    r->pilot_builder->AddPilotEntry(r->last_key, index_block,
+                                data_block, levels);
+}
+
 Status SeekTableBuilder::Finish() {
     Rep* r = rep_;
     assert(r->state != Rep::State::kClosed);
@@ -259,6 +301,7 @@ void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
         }
     }
 
+    BuildPilot(key);
     r->last_key.assign(key.data(), key.size());
     r->data_block.Add(key, value);
 
@@ -268,35 +311,7 @@ void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
     r->props.raw_key_size += key.size();
     r->props.raw_value_size += value.size();
 
-    if (r->pilot_builder.get() == nullptr) {
-        return;
-    }
-    assert(!r->children_iter.empty());
-
-    
-    std::vector<uint8_t> levels;
-    while (true) {
-        SeekTableIterator* ptr = r->iter_heap->top();
-        if (r->comparator.Compare(ptr->key(), key) < 0) {
-            ptr->Next();
-            r->iter_heap->replace_top(ptr);
-            uint8_t idx = r->iter_map[ptr];
-            levels.push_back(idx);
-        } else {
-            break;
-        }
-    }
-
-    std::vector<uint32_t> index_block;
-    std::vector<uint32_t> data_block;
-    for (size_t i = 0; i < r->children_iter.size(); i++) {
-        uint32_t index = r->children_iter[i]->GetIndexBlock();
-        uint32_t data = r->children_iter[i]->GetDataBlock();
-        index_block.push_back(index);
-        data_block.push_back(data);
-    }
-    r->pilot_builder->AddPilotEntry(key, index_block,
-                                data_block, levels);
+    // building pilot block
 }
 
 } // namespace name rocksdb

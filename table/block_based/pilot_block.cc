@@ -70,6 +70,12 @@ void PilotBlockBuilder::AddPilotEntry(
     pilot_block_->Add(key, entry_encoded);
 }
 
+void PilotBlockBuilder::AddFirstEntry(std::vector<uint8_t>& levels) {
+    std::vector<uint32_t> index;
+    std::vector<uint32_t> data;
+    AddPilotEntry("\0", index, data, levels);
+}
+
 // TODO: the code does not look good
 Slice PilotBlockBuilder::Finish() {
     return pilot_block_->Finish();

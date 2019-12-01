@@ -2,6 +2,7 @@
 
 #include "table/table_reader.h"
 #include "table/block_based/seek_block.h"
+#include "table/block_based/pilot_block.h"
 
 namespace rocksdb
 {
@@ -88,7 +89,8 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
                         : table_(table),
                         comp_(comp),
                         index_iter_(index_iter),
-                        block_iter_points_to_real_block_(false)
+                        block_iter_points_to_real_block_(false),
+                        pilot_iter_(nullptr)
                         {}
 
         void Seek(const Slice& target) override;
@@ -104,16 +106,22 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
         Slice value() const override;
         Status status() const override;
 
-        uint32_t GetIndexBlock() const;
-        uint32_t GetDataBlock() const;
+        friend class SeekLevelIterator;
+        friend class SeekTableBuilder;
         
-
     private:
         const SeekTable* table_;
         const Comparator& comp_;
         SeekDataBlockIter* index_iter_;
-        SeekDataBlockIter block_iter_;
         bool block_iter_points_to_real_block_;
+        SeekDataBlockIter block_iter_;
+        SeekDataBlockIter* pilot_iter_;
+
+        uint32_t GetIndexBlock() const;
+        uint32_t GetDataBlock() const;
+        void GetPilot(PilotValue* pilot);
+        void FollowAndGetPilot(PilotValue* pilot);
+
         void SeekImpl(const Slice* target);
         void InitDataBlock();
 };
