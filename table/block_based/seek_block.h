@@ -33,9 +33,9 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
 
         virtual void Seek(const Slice& target) override;
 
-        virtual void SeekForPrev(const Slice& target) override {}
+        virtual void SeekForPrev(const Slice& target) override;
 
-        virtual void Prev() override {}
+        virtual void Prev() override;
 
         virtual void Next() final override;
 
@@ -100,7 +100,7 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
                                 uint32_t* index, const Comparator* comp);
         
         inline int Compare(const IterKey& ikey, const Slice& b) const {
-            return comparator_->Compare(ikey.GetInternalKey(), b);
+            return comparator_->Compare(ikey.GetKey(), b);
         }
 
         inline bool ParseNextDataKey(const char* limit = nullptr) {
@@ -130,7 +130,11 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
             key_.SetKey(Slice(p, key_length), true /* copy */);
             value_ = Slice(p + key_length, value_length);
 
-            restart_index_++;
+            while (restart_index_ + 1 < num_restarts_ &&
+                    GetRestartPoint(restart_index_ + 1) < current_) {
+
+                restart_index_++;
+            }
 
             return true;
         }

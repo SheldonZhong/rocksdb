@@ -67,11 +67,55 @@ void SeekDataBlockIter::SeekToLast() {
         return;
     }
     SeekToRestartPoint(num_restarts_ - 1);
+    ParseNextDataKey();
 }
 
 void SeekDataBlockIter::Next() {
     assert(Valid());
     ParseNextDataKey();
+}
+
+void SeekDataBlockIter::SeekForPrev(const Slice& target) {
+    if (data_ == nullptr) {
+        return;
+    }
+
+    uint32_t index = 0;
+    bool ok = BinarySeek(target, 0, num_restarts_, &index, comparator_);
+    if (!ok) {
+        return;
+    }
+    if (index >= num_restarts_) {
+        SeekToLast();
+        return;
+    }
+
+    SeekToRestartPoint(index);
+    ParseNextDataKey();
+    if (Compare(key_, target) > 0) {
+        Prev();
+    }
+}
+
+void SeekDataBlockIter::Prev() {
+    assert(Valid());
+    const uint32_t original = current_;
+    while (GetRestartPoint(restart_index_) >= original) {
+        if (restart_index_ == 0) {
+            // no more entries to scan
+            current_ = restarts_;
+            restart_index_ = num_restarts_;
+            return;
+        }
+        restart_index_--;
+    }
+    SeekToRestartPoint(restart_index_);
+    do {
+        // linear scan, only loops when there are more than 1 keys in restart interval
+        if (!ParseNextDataKey()) {
+            break;
+        }
+    } while (NextEntryOffset() < original);
 }
 
 bool SeekDataBlockIter::BinarySeek(const Slice& target, uint32_t left,
@@ -119,10 +163,14 @@ void SeekDataBlockIter::Seek(const Slice& target) {
     }
     // out of bound
     if (index >= num_restarts_) {
-        SeekToLast();
-    } else {
-        SeekToRestartPoint(index);
+        // mark invalid
+        current_ = restarts_;
+        restart_index_ = num_restarts_;
+        key_.Clear();
+        value_.clear();
+        return;
     }
+    SeekToRestartPoint(index);
     ParseNextDataKey();
 }
 

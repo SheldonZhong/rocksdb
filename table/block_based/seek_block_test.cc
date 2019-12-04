@@ -113,6 +113,28 @@ TEST_F(BlockTest, SimpleTest) {
     Slice v = iter->value();
     ASSERT_EQ(v.ToString().compare(values[index]), 0);
   }
+
+  for (int i = 0; i < num_records; i++) {
+    // find a random key in the lookaside array
+    int index = rnd.Uniform(num_records);
+    Slice k(keys[index]);
+
+    // search in block for this key
+    iter->SeekForPrev(k);
+    ASSERT_TRUE(iter->Valid());
+    Slice v = iter->value();
+    ASSERT_EQ(v.ToString().compare(values[index]), 0);
+  }
+
+  count = 0;
+  for (iter->SeekToLast(); iter->Valid(); count++, iter->Prev()) {
+    Slice k = iter->key();
+    Slice v = iter->value();
+
+    ASSERT_EQ(k.ToString().compare(keys[num_records - count - 1]), 0);
+    ASSERT_EQ(v.ToString().compare(values[num_records - count - 1]), 0);
+  }
+  ASSERT_EQ(num_records, count);
   delete iter;
 }
 
