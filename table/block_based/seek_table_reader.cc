@@ -257,6 +257,55 @@ void SeekTableIterator::SeekImpl(const Slice* target) {
     }
 }
 
+void SeekTableIterator::Prev() {
+    assert(block_iter_points_to_real_block_);
+    block_iter_.Prev();
+    if (!block_iter_.Valid()) {
+        index_iter_->Prev();
+        if (index_iter_->Valid()) {
+            InitDataBlock();
+            block_iter_.SeekToLast();
+        }
+    }
+}
+
+void SeekTableIterator::SeekForPrev(const Slice& target) {
+    index_iter_->Seek(target);
+
+    if (!index_iter_->Valid()) {
+        if (!index_iter_->status().ok()) {
+            ResetDataIter();
+            return;
+        }
+
+        index_iter_->SeekToLast();
+        if (!index_iter_->Valid()) {
+            ResetDataIter();
+            return;
+        }
+    }
+
+    InitDataBlock();
+
+    block_iter_.SeekForPrev(target);
+    if (!block_iter_.Valid()) {
+        index_iter_->Prev();
+        if (index_iter_->Valid()) {
+            InitDataBlock();
+            block_iter_.SeekToLast();
+        }
+    }
+}
+
+void SeekTableIterator::SeekToLast() {
+    index_iter_->SeekToLast();
+    if (!index_iter_->Valid()) {
+        ResetDataIter();
+    }
+    InitDataBlock();
+    block_iter_.SeekToLast();
+}
+
 void SeekTableIterator::InitDataBlock() {
     Slice index_value = index_iter_->value();
     IndexValue v;

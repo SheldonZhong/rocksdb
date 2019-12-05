@@ -94,17 +94,25 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
                         {}
 
         void Seek(const Slice& target) override;
-        void SeekForPrev(const Slice& target) override {};
+        void SeekForPrev(const Slice& target) override;
         void SeekToFirst() override;
-        void SeekToLast() override {};
+        void SeekToLast() override;
         // Next() should be able to use index information to jump to different levels
         void Next() final override;
         bool NextAndGetResult(IterateResult* result) override;
-        void Prev() override {};
+        void Prev() override;
         bool Valid() const override;
         Slice key() const override;
         Slice value() const override;
         Status status() const override;
+
+        void ResetDataIter() {
+            if (block_iter_points_to_real_block_) {
+                block_iter_.Invalidate(Status::OK());
+                block_iter_points_to_real_block_ = false;
+            }
+        }
+
 
         friend class SeekLevelIterator;
         friend class SeekTableBuilder;
