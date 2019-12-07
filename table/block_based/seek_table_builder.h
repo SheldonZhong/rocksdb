@@ -18,7 +18,7 @@ class SeekTableBuilder : public TableBuilder {
         SeekTableBuilder(
             const Comparator& comparator,
             WritableFileWriter* file,
-            const SeekTable** lower_tables = nullptr, int n = 0);
+            SeekTable** lower_tables = nullptr, int n = 0);
 
         ~SeekTableBuilder() {}
 
@@ -52,7 +52,7 @@ class SeekTableBuilder : public TableBuilder {
 
         void Flush();
 
-        void BuildPilot(const Slice& key);
+        void BuildPilot(const Slice* key = nullptr);
 
         void WriteBlock(SeekBlockBuilder* block, BlockHandle* handle, bool is_data_block);
         void WriteBlock(const Slice& block_contents, BlockHandle* handle, bool is_data_block);

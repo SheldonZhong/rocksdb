@@ -17,23 +17,40 @@ SeekLevelIterator::SeekLevelIterator(
 void SeekLevelIterator::Seek(const Slice& target) {
     SeekTableIterator* index_level = iters_[0];
 
-    index_level->Seek(target);
+    index_level->SeekForPrev(target);
     PilotValue pilot;
-    index_level->FollowAndGetPilot(&pilot);
+    if (index_level->Valid()) {
+        index_level->FollowAndGetPilot(&pilot);
+    } else {
+        index_level->GetFirstPilot(&pilot);
+    }
     size_t n = pilot.index_block_.size();
     assert(n == pilot.data_block_.size());
-    assert(n == (iters_.size() - 1));
-    for (size_t i = 1; i < n; i++) {
-        size_t pilot_idx = i - 1;
-        iters_[i]->index_iter_->SeekToRestartPoint(pilot.index_block_[pilot_idx]);
-        bool ok = iters_[i]->index_iter_->ParseNextDataKey(nullptr);
+    for (size_t i = 0; i < n; i++) {
+        SeekTableIterator* iter = iters_[i + 1];
+        iter->index_iter_->SeekToRestartPoint(pilot.index_block_[i]);
+        bool ok = iter->index_iter_->ParseNextDataKey();
         assert(ok);
-        iters_[i]->block_iter_.SeekToRestartPoint(pilot.data_block_[pilot_idx]);
-        ok = iters_[i]->block_iter_.ParseNextDataKey(nullptr);
+        iter->InitDataBlock();
+        iter->block_iter_.SeekToRestartPoint(pilot.data_block_[i]);
+        ok = iter->block_iter_.ParseNextDataKey();
         assert(ok);
     }
 
-    current_iter_ = iters_[0];
+    if (n == 0) {
+        // seek the key before first key in top level
+        if (pilot.levels_.size() > 0) {
+            for (auto iter : iters_) {
+                iter->SeekToFirst();
+            }
+            current_iter_ = iters_[pilot.levels_[0] + 1];
+        } else {
+            current_iter_ = iters_[0];
+        }
+    } else {
+        current_iter_ = iters_[0];
+    }
+
     current_ = 0;
     levels_ = std::move(pilot.levels_);
     // should be seek for previous
@@ -43,14 +60,9 @@ void SeekLevelIterator::Seek(const Slice& target) {
     // guarantee that scan to first key > target
 }
 
-void SeekLevelIterator::Next() {
-    current_iter_->Next();
-    current_++;
-    assert(current_ < levels_.size());
-    size_t iter_index = static_cast<size_t>(levels_[current_]);
-    assert(iter_index < iters_.size());
-    current_iter_ = iters_[iter_index];
-}
+// inline in .cc never define
+// void SeekLevelIterator::Next() {
+// }
 
 void SeekLevelIterator::SeekToFirst() {
     current_iter_ = iters_[0];
@@ -66,7 +78,9 @@ void SeekLevelIterator::SeekToFirst() {
 
     current_ = 0;
     levels_ = std::move(pilot.levels_);
-    current_iter_ = iters_[levels_[0]];
+    if (!levels_.empty()) {
+        current_iter_ = iters_[levels_[0] + 1];
+    }
 }
 
 Slice SeekLevelIterator::key() const {

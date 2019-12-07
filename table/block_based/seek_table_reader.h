@@ -74,7 +74,7 @@ class SeekTable {
 
         Status ReadPilotBlock(const BlockHandle& handle,
                             std::unique_ptr<SeekBlock>* pilot_block,
-                            std::unique_ptr<InternalIterator>* iter);
+                            std::unique_ptr<SeekDataBlockIter>* iter);
 
         Status RetrieveBlock(const BlockHandle& handle, BlockContents* contents) const;
 
@@ -85,12 +85,13 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
     public:
         SeekTableIterator(const SeekTable* table,
                             const Comparator& comp,
-                            SeekDataBlockIter* index_iter)
+                            SeekDataBlockIter* index_iter,
+                            SeekDataBlockIter* pilot_iter = nullptr)
                         : table_(table),
                         comp_(comp),
                         index_iter_(index_iter),
                         block_iter_points_to_real_block_(false),
-                        pilot_iter_(nullptr)
+                        pilot_iter_(pilot_iter)
                         {}
 
         void Seek(const Slice& target) override;
@@ -128,6 +129,7 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
         uint32_t GetIndexBlock() const;
         uint32_t GetDataBlock() const;
         void GetPilot(PilotValue* pilot);
+        void GetFirstPilot(PilotValue* pilot);
         void FollowAndGetPilot(PilotValue* pilot);
 
         void SeekImpl(const Slice* target);

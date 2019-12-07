@@ -130,8 +130,8 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
             key_.SetKey(Slice(p, key_length), true /* copy */);
             value_ = Slice(p + key_length, value_length);
 
-            while (restart_index_ + 1 < num_restarts_ &&
-                    GetRestartPoint(restart_index_ + 1) < current_) {
+            while (restart_index_ + 1 <= num_restarts_ &&
+                    GetRestartPoint(restart_index_) < current_) {
 
                 restart_index_++;
             }

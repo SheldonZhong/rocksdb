@@ -35,6 +35,7 @@ Status PilotValue::DecodeFrom(Slice* input) {
         if (!GetFixed32(input, &buf)) {
             return Status::Corruption("bad encode pilot value data_block");
         }
+        data_block_[i] = buf;
     }
 
     uint32_t n;
@@ -56,7 +57,7 @@ Status PilotValue::DecodeFrom(Slice* input) {
 }
 
 PilotBlockBuilder::PilotBlockBuilder()
-    : pilot_block_() {}
+    : pilot_block_(new SeekBlockBuilder) {}
 
 void PilotBlockBuilder::AddPilotEntry(
                                 const Slice& key,

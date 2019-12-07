@@ -15,7 +15,7 @@ struct SeekTable::Rep {
     Footer footer;
 
     std::unique_ptr<IndexReader> index_reader;
-    std::unique_ptr<InternalIterator> pilot_block;
+    std::unique_ptr<SeekDataBlockIter> pilot_block;
 
     int level;
 
@@ -78,7 +78,7 @@ Status SeekTable::Open(const Comparator& comparator,
         }
 
         std::unique_ptr<SeekBlock> pilot_block;
-        std::unique_ptr<InternalIterator> pilot_iter;
+        std::unique_ptr<SeekDataBlockIter> pilot_iter;
         s = new_table->ReadPilotBlock(pilot_handle, &pilot_block, &pilot_iter);
         if (!s.ok()) {
             return s;
@@ -148,7 +148,7 @@ Status SeekTable::ReadMetaBlock(std::unique_ptr<SeekBlock>* meta_block,
 
 Status SeekTable::ReadPilotBlock(const BlockHandle& handle,
                                 std::unique_ptr<SeekBlock>* pilot_block,
-                                std::unique_ptr<InternalIterator>* iter) {
+                                std::unique_ptr<SeekDataBlockIter>* iter) {
     BlockContents contents;
     Status s = RetrieveBlock(handle, &contents);
     pilot_block->reset(new SeekBlock(std::move(contents)));
@@ -177,6 +177,9 @@ InternalIterator* SeekTable::NewIterator() const {
 
 SeekTableIterator* SeekTable::NewSeekTableIter() const {
     SeekDataBlockIter* index_iter = NewIndexIterator();
+    if (rep_->pilot_block.get() != nullptr) {
+        return new SeekTableIterator(this, rep_->comparator, index_iter, rep_->pilot_block.get());
+    }
     return new SeekTableIterator(this, rep_->comparator, index_iter);
 }
 
@@ -328,9 +331,6 @@ void SeekTableIterator::Next() {
             block_iter_.SeekToFirst();
         }
     }
-    if (!index_iter_->Valid()) {
-        return;
-    }
 }
 
 bool SeekTableIterator::NextAndGetResult(IterateResult* result) {
@@ -373,9 +373,16 @@ void SeekTableIterator::FollowAndGetPilot(PilotValue* pilot) {
 
     assert(Valid());
     Slice k = key();
+    // we should avoid reseek
     pilot_iter_->Seek(k);
     assert(pilot_iter_->Valid());
     assert(k.compare(pilot_iter_->key()) == 0);
+    GetPilot(pilot);
+}
+
+void SeekTableIterator::GetFirstPilot(PilotValue* pilot) {
+    pilot_iter_->SeekToFirst();
+    assert(pilot_iter_->Valid());
     GetPilot(pilot);
 }
 

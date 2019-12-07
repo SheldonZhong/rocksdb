@@ -36,13 +36,15 @@ struct SeekTableBuilder::Rep {
 
     std::unique_ptr<SeekIndexBuilder> index_builder;
 
-    std::vector<const SeekTable*> children;
+    std::vector<SeekTable*> children;
     std::vector<SeekTableIterator*> children_iter;
 
     std::unique_ptr<minHeap> iter_heap;
     std::map<SeekTableIterator*, uint8_t> iter_map;
 
     std::unique_ptr<PilotBlockBuilder> pilot_builder;
+    std::vector<uint32_t> pending_data_block_;
+    std::vector<uint32_t> pending_index_block_;
 
     std::string last_key;
 
@@ -66,7 +68,7 @@ struct SeekTableBuilder::Rep {
     Rep(const Comparator& _comparator, WritableFileWriter* f,
         const uint64_t _creation_time, const uint64_t _target_file_size,
         const uint64_t _file_creation_time, const uint64_t _block_size,
-        const SeekTable** lower_levels, int n)
+        SeekTable** lower_levels, int n)
         : comparator(_comparator),
         file(f),
         data_block(),
@@ -100,7 +102,7 @@ struct SeekTableBuilder::Rep {
     ~Rep() {}
 };
 
-void SeekTableBuilder::BuildPilot(const Slice& key) {
+void SeekTableBuilder::BuildPilot(const Slice* key) {
     Rep* r = rep_;
     if (r->pilot_builder.get() == nullptr) {
         return;
@@ -111,7 +113,7 @@ void SeekTableBuilder::BuildPilot(const Slice& key) {
     std::vector<uint8_t> levels;
     while (!r->iter_heap->empty()) {
         SeekTableIterator* ptr = r->iter_heap->top();
-        if (r->comparator.Compare(ptr->key(), key) < 0) {
+        if (key == nullptr || r->comparator.Compare(ptr->key(), *key) < 0) {
             ptr->Next();
             if (ptr->Valid()) {
                 r->iter_heap->replace_top(ptr);
@@ -127,19 +129,23 @@ void SeekTableBuilder::BuildPilot(const Slice& key) {
 
     if (r->pilot_builder.get()->empty()) {
         r->pilot_builder->AddFirstEntry(levels);
-        return;
+    } else {
+        // should use the previous index and data offset
+        // since the iterators are now behind key instead of r->last_key
+        r->pilot_builder->AddPilotEntry(r->last_key, r->pending_index_block_,
+                                        r->pending_data_block_, levels);
     }
 
-    std::vector<uint32_t> index_block;
-    std::vector<uint32_t> data_block;
-    for (size_t i = 0; i < r->children_iter.size(); i++) {
-        uint32_t index = r->children_iter[i]->GetIndexBlock();
-        uint32_t data = r->children_iter[i]->GetDataBlock();
-        index_block.push_back(index);
-        data_block.push_back(data);
+    r->pending_index_block_.clear();
+    r->pending_data_block_.clear();
+    if (!r->iter_heap->empty()) {
+        for (size_t i = 0; i < r->children_iter.size(); i++) {
+            uint32_t index = r->children_iter[i]->GetIndexBlock();
+            uint32_t data = r->children_iter[i]->GetDataBlock();
+            r->pending_index_block_.push_back(index);
+            r->pending_data_block_.push_back(data);
+        }
     }
-    r->pilot_builder->AddPilotEntry(r->last_key, index_block,
-                                data_block, levels);
 }
 
 Status SeekTableBuilder::Finish() {
@@ -157,8 +163,10 @@ Status SeekTableBuilder::Finish() {
 
     WriteIndexBlock(&meta_index_builder, &index_block_handle);
     if (rep_->pilot_builder.get() != nullptr) {
+        BuildPilot();
         WritePilotBlock(&meta_index_builder);
     }
+    // remove it if iterator could check out-of-bound
     meta_index_builder.Add("dummy meta data", index_block_handle);
     WriteRawBlock(meta_index_builder.Finish(), &metaindex_block_handle);
     WriteFooter(metaindex_block_handle, index_block_handle);
@@ -280,7 +288,7 @@ void SeekTableBuilder::WriteRawBlock(const Slice& raw_contents,
 SeekTableBuilder::SeekTableBuilder(
     const Comparator& comparator,
     WritableFileWriter* file,
-    const SeekTable** lower_levels, int n) {
+    SeekTable** lower_levels, int n) {
 
     rep_ = new Rep(comparator, file, 0, 0, 0, 4096,
                 lower_levels, n);
@@ -301,7 +309,7 @@ void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
         }
     }
 
-    BuildPilot(key);
+    BuildPilot(&key);
     r->last_key.assign(key.data(), key.size());
     r->data_block.Add(key, value);
 
