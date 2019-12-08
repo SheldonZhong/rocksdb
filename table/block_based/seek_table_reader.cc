@@ -331,6 +331,12 @@ void SeekTableIterator::Next() {
             block_iter_.SeekToFirst();
         }
     }
+
+    if (pilot_iter_ == nullptr) {
+        return;
+    }
+
+    pilot_iter_->Next();
 }
 
 bool SeekTableIterator::NextAndGetResult(IterateResult* result) {
@@ -384,6 +390,7 @@ void SeekTableIterator::GetFirstPilot(PilotValue* pilot) {
     pilot_iter_->SeekToFirst();
     assert(pilot_iter_->Valid());
     GetPilot(pilot);
+    pilot_iter_->Next();
 }
 
 void SeekTableIterator::GetPilot(PilotValue* pilot) {

@@ -72,6 +72,7 @@ void SeekLevelIterator::SeekToFirst() {
     }
     PilotValue pilot;
     current_iter_->GetPilot(&pilot);
+    current_iter_->pilot_iter_->Next();
     assert(pilot.data_block_.size() == 
             pilot.index_block_.size());
     assert(pilot.data_block_.size() == 0);
@@ -97,7 +98,10 @@ bool SeekLevelIterator::Valid() const {
     if (current_iter_ == nullptr) {
         return false;
     }
-
+    if (current_iter_->pilot_iter_ != nullptr &&
+        !current_iter_->pilot_iter_->Valid()) {
+        return false;
+    }
     return current_iter_->Valid();
 }
 

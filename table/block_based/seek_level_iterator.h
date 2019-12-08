@@ -18,8 +18,6 @@ class SeekLevelIterator : public InternalIterator {
         void SeekToLast() override {}
         void Seek(const Slice& target) override;
         inline void Next() override {
-            // FIXME: there is a case when two keys in pilot layer
-            // is consequent
             current_iter_->Next();
             if (current_iter_ != iters_[0]) {
                 current_++;
@@ -30,11 +28,14 @@ class SeekLevelIterator : public InternalIterator {
                 PilotValue pilot;
                 // follow and get has extra seek in pilot_iter
                 // there should be a function directly advanced the pointer
-                current_iter_->GetPilot(&pilot);
+                if (current_iter_->pilot_iter_ != nullptr &&
+                    current_iter_->pilot_iter_->Valid()) {
+
+                    current_iter_->GetPilot(&pilot);
+                }
                 
                 size_t n = pilot.data_block_.size();
                 assert(n == pilot.index_block_.size());
-                assert(n = (iters_.size() - 1));
 
                 levels_ = std::move(pilot.levels_);
                 return;
