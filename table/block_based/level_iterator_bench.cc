@@ -71,7 +71,6 @@ struct Timer {
         nano_seconds elapsed = stop - start;
 
         std::cout.imbue(std::locale(""));
-        std::cout << "time spent " << elapsed.count() << " ns" << std::endl;
         if (elapsed < micro_seconds(1))
             std::cout << "time spent " << nano_seconds(elapsed).count() << " ns" << std::endl;
         else if (elapsed < milli_seconds(1))
@@ -111,11 +110,11 @@ struct Benchmark {
 
     Timer timer;
 
-    Benchmark()
-    : rnd(1234),
-    num_records(100000),
+    Benchmark(int _num_records = 100000, int _layers = 5, int _rnd = 1234)
+    : rnd(_rnd),
+    num_records(_num_records),
     cmp(BytewiseComparator()),
-    layers(5),
+    layers(_layers),
     readers(new SeekTable*[layers]),
     iters(new SeekTableIterator*[layers])
     {
@@ -209,6 +208,10 @@ struct Benchmark {
 struct MergingBench : public Benchmark {
     MergingBench()
     : Benchmark() {}
+
+    MergingBench(int _num, int _layers, int _rnd)
+    : Benchmark(_num, _layers, _rnd) {}
+
     void Prepare() override {
         std::cout << "Pilot block seek benchmark" << std::endl;
         for (int i = 0; i < layers; i++) {
@@ -245,6 +248,10 @@ struct MergingBench : public Benchmark {
 struct SeekBench : public Benchmark {
     SeekBench()
     : Benchmark() {}
+
+    SeekBench(int _num, int _layers, int _rnd)
+    : Benchmark(_num, _layers, _rnd) {}
+
     void Prepare() override {
         std::cout << "Pilot block seek benchmark" << std::endl;
         for (int i = 1; i < layers; i++) {
@@ -297,20 +304,40 @@ struct SeekBench : public Benchmark {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cout << argv[0] << " [m/l]" << std::endl;
+        std::cout << argv[0] << " [m/p] [num_records] [layers] [rnd]" << std::endl;
+        std::cout << "m for merging iterator" << std::endl;
+        std::cout << "p for pilot guided iterator" << std::endl;
         exit(1);
     }
+    int num_records = 100000;
+    int layers = 5;
+    int rnd = 4444;
+    if (argc > 2) {
+        num_records = std::atoi(argv[2]);
+    }
+    if (argc > 3) {
+        layers = std::atoi(argv[3]);
+    }
+    if (argc > 4) {
+        rnd = std::atoi(argv[4]);
+    }
+
     rocksdb::Benchmark* bench;
     switch (*argv[1])
     {
     case 'm':
-        bench = new rocksdb::MergingBench();
+        bench = new rocksdb::MergingBench(num_records, layers, rnd);
         break;
-    case 'l':
-        bench = new rocksdb::SeekBench();
+    case 'p':
+        bench = new rocksdb::SeekBench(num_records, layers, rnd);
     default:
         break;
     }
+
+    std::cout.imbue(std::locale(""));
+    std::cout << "number of records: " << num_records << std::endl;
+    std::cout << "numer of layers: " << layers << std::endl;
+    std::cout << "random seed: " << rnd << std::endl;
     bench->Prepare();
     bench->Finish();
     bench->Run();
