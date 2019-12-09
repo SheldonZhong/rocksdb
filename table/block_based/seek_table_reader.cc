@@ -229,7 +229,7 @@ void SeekTableIterator::Seek(const Slice& target) {
 
 void SeekTableIterator::SeekImpl(const Slice* target) {
     bool seek_index = true;
-    if (block_iter_.Valid()) {
+    if (block_iter_.Valid() && index_iter_->Valid()) {
         if (target) {
             if (comp_.Compare(*target,
                                 block_iter_.key()) > 0 &&
@@ -248,6 +248,7 @@ void SeekTableIterator::SeekImpl(const Slice* target) {
         }
 
         if (!index_iter_->Valid()) {
+            block_iter_points_to_real_block_ = false;
             return;
         }
     }
