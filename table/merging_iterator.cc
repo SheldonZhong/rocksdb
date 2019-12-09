@@ -36,7 +36,7 @@ const size_t kNumIterReserve = 4;
 
 class MergingIterator : public InternalIterator {
  public:
-  MergingIterator(const InternalKeyComparator* comparator,
+  MergingIterator(const Comparator* comparator,
                   InternalIterator** children, int n, bool is_arena_mode,
                   bool prefix_seek_mode)
       : is_arena_mode_(is_arena_mode),
@@ -332,7 +332,7 @@ class MergingIterator : public InternalIterator {
   void InitMaxHeap();
 
   bool is_arena_mode_;
-  const InternalKeyComparator* comparator_;
+  const Comparator* comparator_;
   autovector<IteratorWrapper, kNumIterReserve> children_;
 
   // Cached pointer to child iterator with the current key, or nullptr if no
@@ -403,7 +403,7 @@ void MergingIterator::InitMaxHeap() {
   }
 }
 
-InternalIterator* NewMergingIterator(const InternalKeyComparator* cmp,
+InternalIterator* NewMergingIterator(const Comparator* cmp,
                                      InternalIterator** list, int n,
                                      Arena* arena, bool prefix_seek_mode) {
   assert(n >= 0);
@@ -422,7 +422,7 @@ InternalIterator* NewMergingIterator(const InternalKeyComparator* cmp,
 }
 
 MergeIteratorBuilder::MergeIteratorBuilder(
-    const InternalKeyComparator* comparator, Arena* a, bool prefix_seek_mode)
+    const Comparator* comparator, Arena* a, bool prefix_seek_mode)
     : first_iter(nullptr), use_merging_iter(false), arena(a) {
   auto mem = arena->AllocateAligned(sizeof(MergingIterator));
   merge_iter =

@@ -15,28 +15,28 @@ namespace rocksdb {
 // iterator with the max/largest key on top.
 class MaxIteratorComparator {
  public:
-  MaxIteratorComparator(const InternalKeyComparator* comparator)
+  MaxIteratorComparator(const Comparator* comparator)
       : comparator_(comparator) {}
 
   bool operator()(IteratorWrapper* a, IteratorWrapper* b) const {
     return comparator_->Compare(a->key(), b->key()) < 0;
   }
  private:
-  const InternalKeyComparator* comparator_;
+  const Comparator* comparator_;
 };
 
 // When used with std::priority_queue, this comparison functor puts the
 // iterator with the min/smallest key on top.
 class MinIteratorComparator {
  public:
-  MinIteratorComparator(const InternalKeyComparator* comparator)
+  MinIteratorComparator(const Comparator* comparator)
       : comparator_(comparator) {}
 
   bool operator()(IteratorWrapper* a, IteratorWrapper* b) const {
     return comparator_->Compare(a->key(), b->key()) > 0;
   }
  private:
-  const InternalKeyComparator* comparator_;
+  const Comparator* comparator_;
 };
 
 }  // namespace rocksdb
