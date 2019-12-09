@@ -60,7 +60,7 @@ void SeekLevelIterator::Seek(const Slice& target) {
     }
 
     current_ = 0;
-    levels_ = std::move(pilot.levels_);
+    levels_ = pilot.levels_;
     // should be seek for previous
     while (comp_.Compare(key(), target) < 0) {
         Next();
@@ -86,7 +86,7 @@ void SeekLevelIterator::SeekToFirst() {
     assert(pilot.data_block_.size() == 0);
 
     current_ = 0;
-    levels_ = std::move(pilot.levels_);
+    levels_ = pilot.levels_;
     if (!levels_.empty()) {
         current_iter_ = iters_[levels_[0] + 1];
     }

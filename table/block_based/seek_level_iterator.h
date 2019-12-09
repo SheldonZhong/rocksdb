@@ -37,7 +37,7 @@ class SeekLevelIterator : public InternalIterator {
                 size_t n = pilot.data_block_.size();
                 assert(n == pilot.index_block_.size());
 
-                levels_ = std::move(pilot.levels_);
+                levels_ = pilot.levels_;
                 return;
             }
             size_t iter_index = static_cast<size_t>(levels_[current_] + 1);
