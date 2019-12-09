@@ -213,7 +213,7 @@ struct MergingBench : public Benchmark {
     : Benchmark(_num, _layers, _rnd) {}
 
     void Prepare() override {
-        std::cout << "Pilot block seek benchmark" << std::endl;
+        std::cout << "Merging seek benchmark" << std::endl;
         for (int i = 0; i < layers; i++) {
             SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[i].get());
             for (int idx = 0; idx < num_records; idx++) {
