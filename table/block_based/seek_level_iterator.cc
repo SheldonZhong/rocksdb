@@ -28,13 +28,21 @@ void SeekLevelIterator::Seek(const Slice& target) {
     assert(n == pilot.data_block_.size());
     for (size_t i = 0; i < n; i++) {
         SeekTableIterator* iter = iters_[i + 1];
-        iter->index_iter_->SeekToRestartPoint(pilot.index_block_[i]);
-        bool ok = iter->index_iter_->ParseNextDataKey();
-        assert(ok);
+        if (pilot.index_block_[i] & 0x70000000) {
+            iter->index_iter_->SeekToLast();
+        } else {
+            iter->index_iter_->SeekToRestartPoint(pilot.index_block_[i]);
+            bool ok = iter->index_iter_->ParseNextDataKey();
+            assert(ok);
+        }
         iter->InitDataBlock();
-        iter->block_iter_.SeekToRestartPoint(pilot.data_block_[i]);
-        ok = iter->block_iter_.ParseNextDataKey();
-        assert(ok);
+        if (pilot.data_block_[i] & 0x70000000) {
+            iter->block_iter_.SeekToLast();
+        } else {
+            iter->block_iter_.SeekToRestartPoint(pilot.data_block_[i]);
+            bool ok = iter->block_iter_.ParseNextDataKey();
+            assert(ok);
+        }
     }
 
     if (n == 0) {

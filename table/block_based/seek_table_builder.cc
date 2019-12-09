@@ -140,8 +140,12 @@ void SeekTableBuilder::BuildPilot(const Slice* key) {
     r->pending_data_block_.clear();
     if (!r->iter_heap->empty()) {
         for (size_t i = 0; i < r->children_iter.size(); i++) {
-            uint32_t index = r->children_iter[i]->GetIndexBlock();
-            uint32_t data = r->children_iter[i]->GetDataBlock();
+            uint32_t index = 0xFFFFFFFF;
+            uint32_t data = 0xFFFFFFFF;
+            if (r->children_iter[i]->Valid()) {
+                index = r->children_iter[i]->GetIndexBlock();
+                data = r->children_iter[i]->GetDataBlock();
+            }
             r->pending_index_block_.push_back(index);
             r->pending_data_block_.push_back(data);
         }
