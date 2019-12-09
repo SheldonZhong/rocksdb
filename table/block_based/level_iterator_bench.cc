@@ -330,6 +330,7 @@ int main(int argc, char** argv) {
         break;
     case 'p':
         bench = new rocksdb::SeekBench(num_records, layers, rnd);
+        break;
     default:
         std::cout << argv[0] << " [m/p]" << std::endl;
         exit(1);
