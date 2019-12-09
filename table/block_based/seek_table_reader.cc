@@ -98,7 +98,7 @@ Status SeekTable::Open(const Comparator& comparator,
 Status SeekTable::RetrieveBlock(const BlockHandle& handle, BlockContents* contents) const {
     // slice is on stack, the content in data would be lost after function return
     Slice slice;
-    contents->is_raw_block = true;
+    // contents->is_raw_block = true;
     Status s;
     size_t n = static_cast<size_t>(handle.size());
     char* buf = new char[n + kBlockTrailerSize];
