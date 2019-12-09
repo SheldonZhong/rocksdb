@@ -87,7 +87,7 @@ struct Timer {
         nano_seconds elapsed = stop - start;
         std::cout << nops << " operations" << std::endl;
         double IOPS = nops / elapsed.count() * nano_seconds(seconds(1)).count();
-        std::cout << "IOPS: " << IOPS << std::endl;
+        std::cout << "OPS: " << IOPS << std::endl;
     }
 };
 
@@ -140,6 +140,7 @@ struct Benchmark {
         delete[] iters;
     }
 
+    virtual void Prepare() = 0;
     virtual void Finish() = 0;
     virtual InternalIterator* GetIter() = 0;
 
@@ -177,43 +178,75 @@ struct Benchmark {
         timer.Tok();
         timer.Report(count);
         
-        std::cout << "Random seek with 0 next" << std::endl;
-        int nexts = 0;
-        timer.Tik();
-        for (int i = 0; i < num_records; i++) {
-            int index = rnd.Uniform(num_records);
-            
-            iter->Seek(keys[index]);
-            int next_index = index;
-            int end = (index + nexts) < num_records ? (index + nexts) : num_records;
-            do {
-                Slice k = iter->key();
-                Slice v = iter->value();
-                int cmprslt = k.ToString().compare(keys[next_index]);
-                assert(cmprslt == 0);
-                cmprslt = v.ToString().compare(values[next_index]);
-                assert(cmprslt == 0);
-                next_index++;
-                iter->Next();
-            } while (next_index < end);
+        for (int nexts = 0; nexts < 50; nexts += 10) {
+            count = 0;
+            std::cout << std::endl << "Random seek with " << nexts << " next" << std::endl;
+            timer.Tik();
+            for (int i = 0; i < num_records; i++) {
+                int index = rnd.Uniform(num_records);
+                
+                iter->Seek(keys[index]);
+                int next_index = index;
+                int end = (index + nexts) < num_records ? (index + nexts) : num_records;
+                do {
+                    Slice k = iter->key();
+                    Slice v = iter->value();
+                    count++;
+                    int cmprslt = k.ToString().compare(keys[next_index]);
+                    assert(cmprslt == 0);
+                    cmprslt = v.ToString().compare(values[next_index]);
+                    assert(cmprslt == 0);
+                    next_index++;
+                    iter->Next();
+                } while (next_index < end);
+            }
+            timer.Tok();
+            timer.Report(count);
         }
-        timer.Tok();
-        timer.Report(num_records);
     }
 };
 
 struct MergingBench : public Benchmark {
     MergingBench()
     : Benchmark() {}
+    void Prepare() override {
+        std::cout << "Pilot block seek benchmark" << std::endl;
+        for (int i = 0; i < layers; i++) {
+            SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[i].get());
+            for (int idx = 0; idx < num_records; idx++) {
+                if (sequences[idx] == i) {
+                    builder->Add(keys[idx], values[idx]);
+                }
+            }
+            Status s = builder->Finish();
+            assert(s.ok());
+            Flush(i);
+            std::unique_ptr<RandomAccessFileReader>& file_reader_ = file_reader[i];
+            std::unique_ptr<SeekTable> reader;
+            SeekTable::Open(*cmp, std::move(file_reader_),
+                            size(i), &reader, 0);
+            readers[i] = reader.release();
+            iters[i] = readers[i]->NewSeekTableIter();
+            delete builder;
+        }
+    }
     void Finish() override {
-        
+    }
+
+    InternalIterator* GetIter() override {
+        InternalIterator** iiters = new InternalIterator*[layers];
+        for (int i = 0; i < layers; i++) {
+            iiters[i] = iters[i];
+        }
+        return NewMergingIterator(cmp, iiters, layers);
     }
 };
 
 struct SeekBench : public Benchmark {
     SeekBench()
     : Benchmark() {}
-    void BuildNormalTables() {
+    void Prepare() override {
+        std::cout << "Pilot block seek benchmark" << std::endl;
         for (int i = 1; i < layers; i++) {
             SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[i].get());
             for (int idx = 0; idx < num_records; idx++) {
@@ -263,8 +296,22 @@ struct SeekBench : public Benchmark {
 
 
 int main(int argc, char** argv) {
-    rocksdb::SeekBench* bench = new rocksdb::SeekBench();
-    bench->BuildNormalTables();
+    if (argc < 2) {
+        std::cout << argv[0] << " [m/l]" << std::endl;
+        exit(1);
+    }
+    rocksdb::Benchmark* bench;
+    switch (*argv[1])
+    {
+    case 'm':
+        bench = new rocksdb::MergingBench();
+        break;
+    case 'l':
+        bench = new rocksdb::SeekBench();
+    default:
+        break;
+    }
+    bench->Prepare();
     bench->Finish();
     bench->Run();
 }
