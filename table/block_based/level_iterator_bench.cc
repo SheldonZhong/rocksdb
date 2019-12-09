@@ -1,0 +1,270 @@
+#include "table/block_based/seek_level_iterator.h"
+#include "table/block_based/seek_table_builder.h"
+#include "table/merging_iterator.h"
+#include "include/rocksdb/env.h"
+#include "test_util/testutil.h"
+
+#include <chrono>
+#include <iostream>
+
+namespace rocksdb
+{
+
+using nano_seconds = std::chrono::duration<double, std::ratio<1, 1000000000>>;
+using micro_seconds = std::chrono::duration<double, std::ratio<1, 1000000>>;
+using milli_seconds = std::chrono::duration<double, std::ratio<1, 1000>>;
+using seconds = std::chrono::duration<double, std::ratio<1, 1>>;
+
+static std::string RandomString(Random *rnd, int len) {
+    std::string r;
+    test::RandomString(rnd, len, &r);
+    return r;
+}
+std::string GenerateKey(int primary_key, int secondary_key, int padding_size,
+                        Random *rnd) {
+    char buf[50];
+    char *p = &buf[0];
+    snprintf(buf, sizeof(buf), "%6d%4d%s", primary_key, secondary_key,
+                RandomString(rnd, rnd->Uniform(10) + 1).c_str());
+    std::string k(p);
+    if (padding_size) {
+        k += RandomString(rnd, padding_size);
+    }
+
+    return k;
+}
+
+// Generate random key value pairs.
+// The generated key will be sorted. You can tune the parameters to generated
+// different kinds of test key/value pairs for different scenario.
+void GenerateRandomKVs(std::vector<std::string> *keys,
+                       std::vector<std::string> *values, const int from,
+                       const int len, const int step = 1,
+                       const int padding_size = 0,
+                       const int keys_share_prefix = 1) {
+    Random rnd(302);
+
+    // generate different prefix
+    for (int i = from; i < from + len; i += step) {
+        // generating keys that shares the prefix
+        for (int j = 0; j < keys_share_prefix; ++j) {
+        keys->emplace_back(GenerateKey(i, j, padding_size, &rnd));
+
+        // 100 bytes values
+        values->emplace_back(RandomString(&rnd, rnd.Uniform(100) + 20));
+        }
+    }
+}
+
+struct Timer {
+    std::chrono::high_resolution_clock::time_point start;
+    std::chrono::high_resolution_clock::time_point stop;
+
+    void Tik() {
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    void Tok() {
+        stop = std::chrono::high_resolution_clock::now();
+    }
+    void Report() {
+        nano_seconds elapsed = stop - start;
+
+        std::cout.imbue(std::locale(""));
+        std::cout << "time spent " << elapsed.count() << " ns" << std::endl;
+        if (elapsed < micro_seconds(1))
+            std::cout << "time spent " << nano_seconds(elapsed).count() << " ns" << std::endl;
+        else if (elapsed < milli_seconds(1))
+            std::cout << "time spent " << micro_seconds(elapsed).count() << " \u03BCs" << std::endl;
+        else if (elapsed < seconds(1))
+            std::cout << "time spent " << milli_seconds(elapsed).count() << " ms" << std::endl;
+        else
+            std::cout << "time spent " << seconds(elapsed).count() << " s" << std::endl;
+    }
+
+    void Report(uint64_t nops) {
+        Report();
+        nano_seconds elapsed = stop - start;
+        std::cout << nops << " operations" << std::endl;
+        double IOPS = nops / elapsed.count() * nano_seconds(seconds(1)).count();
+        std::cout << "IOPS: " << IOPS << std::endl;
+    }
+};
+
+struct Benchmark {
+    Random rnd;
+    std::vector<std::string> keys;
+    std::vector<std::string> values;
+    int num_records;
+
+    const Comparator* cmp;
+
+    std::vector<std::unique_ptr<WritableFileWriter>> file_writer;
+    std::vector<std::unique_ptr<RandomAccessFileReader>> file_reader;
+
+    int layers;
+
+    SeekTable** readers;
+    SeekTableIterator** iters;
+
+    std::vector<int> sequences;
+
+    Timer timer;
+
+    Benchmark()
+    : rnd(1234),
+    num_records(100000),
+    cmp(BytewiseComparator()),
+    layers(5),
+    readers(new SeekTable*[layers]),
+    iters(new SeekTableIterator*[layers])
+    {
+        GenerateRandomKVs(&keys, &values, 0, num_records);
+        file_reader.resize(layers);
+        file_writer.resize(layers);
+        for (int i = 0; i < layers; i++) {
+            file_writer[i].reset(test::GetWritableFileWriter(new test::StringSink(), ""));
+        }
+        for (int i = 0; i < num_records; i++) {
+            sequences.push_back(rnd.Uniform(layers));
+        }
+    }
+
+    virtual ~Benchmark() {
+        delete cmp;
+        for (int i = 0; i < layers; i++) {
+            delete readers[i];
+            delete iters;
+        }
+        delete[] readers;
+        delete[] iters;
+    }
+
+    virtual void Finish() = 0;
+    virtual InternalIterator* GetIter() = 0;
+
+    void Flush(int idx) {
+        if (idx < 0 || idx >= layers) {
+            return;
+        }
+        file_writer[idx]->Flush();
+        file_reader[idx].reset(test::GetRandomAccessFileReader(new test::StringSource(
+            static_cast<test::StringSink*>(file_writer[idx]->writable_file())->contents(),
+            1, false)));
+    }
+
+    size_t size(int idx) {
+        if (idx < 0 || idx >= layers) {
+            return 0;
+        }
+        return static_cast<test::StringSink*>(file_writer[idx]->writable_file())->contents().size();
+    }
+
+    void Run() {
+        InternalIterator* iter = GetIter();
+        std::cout << "SeekToFirst next until the end" << std::endl;
+        timer.Tik();
+        int count = 0;
+        for (iter->SeekToFirst(); iter->Valid(); count++, iter->Next()) {
+            Slice k = iter->key();
+            Slice v = iter->value();
+            int cmprslt = k.ToString().compare(keys[count]);
+            assert(cmprslt == 0);
+            cmprslt = v.ToString().compare(values[count]);
+            assert(cmprslt == 0);
+        }
+        assert(count == num_records);
+        timer.Tok();
+        timer.Report(count);
+        
+        std::cout << "Random seek with 0 next" << std::endl;
+        int nexts = 0;
+        timer.Tik();
+        for (int i = 0; i < num_records; i++) {
+            int index = rnd.Uniform(num_records);
+            
+            iter->Seek(keys[index]);
+            int next_index = index;
+            int end = (index + nexts) < num_records ? (index + nexts) : num_records;
+            do {
+                Slice k = iter->key();
+                Slice v = iter->value();
+                int cmprslt = k.ToString().compare(keys[next_index]);
+                assert(cmprslt == 0);
+                cmprslt = v.ToString().compare(values[next_index]);
+                assert(cmprslt == 0);
+                next_index++;
+                iter->Next();
+            } while (next_index < end);
+        }
+        timer.Tok();
+        timer.Report(num_records);
+    }
+};
+
+struct MergingBench : public Benchmark {
+    MergingBench()
+    : Benchmark() {}
+    void Finish() override {
+        
+    }
+};
+
+struct SeekBench : public Benchmark {
+    SeekBench()
+    : Benchmark() {}
+    void BuildNormalTables() {
+        for (int i = 1; i < layers; i++) {
+            SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[i].get());
+            for (int idx = 0; idx < num_records; idx++) {
+                if (sequences[idx] == i) {
+                    builder->Add(keys[idx], values[idx]);
+                }
+            }
+            Status s = builder->Finish();
+            assert(s.ok());
+            Flush(i);
+            std::unique_ptr<RandomAccessFileReader>& file_reader_ = file_reader[i];
+            std::unique_ptr<SeekTable> reader;
+            SeekTable::Open(*cmp, std::move(file_reader_),
+                            size(i), &reader, 0);
+            readers[i] = reader.release();
+            iters[i] = readers[i]->NewSeekTableIter();
+            delete builder;
+        }
+    }
+
+    void Finish() override {
+        SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[0].get(),
+                                                        readers + 1, layers - 1);
+        for (int i = 0; i < num_records; i++) {
+            if (sequences[i] == 0) {
+                builder->Add(keys[i], values[i]);
+            }
+        }
+        Status s = builder->Finish();
+        assert(s.ok());
+        Flush(0);
+        std::unique_ptr<RandomAccessFileReader>& file_reader_ = file_reader[0];
+        std::unique_ptr<SeekTable> reader;
+        SeekTable::Open(*cmp, std::move(file_reader_),
+                        size(0), &reader, 0);
+        readers[0] = reader.release();
+        iters[0] = readers[0]->NewSeekTableIter();
+        delete builder;
+    }
+
+    InternalIterator* GetIter() override {
+        return new SeekLevelIterator(iters, layers, *cmp);
+    }
+};
+
+}; // namespace namerocksdb
+
+
+int main(int argc, char** argv) {
+    rocksdb::SeekBench* bench = new rocksdb::SeekBench();
+    bench->BuildNormalTables();
+    bench->Finish();
+    bench->Run();
+}
