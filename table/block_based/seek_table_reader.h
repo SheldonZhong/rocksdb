@@ -91,7 +91,9 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
                         comp_(comp),
                         index_iter_(index_iter),
                         block_iter_points_to_real_block_(false),
-                        pilot_iter_(pilot_iter)
+                        pilot_iter_(pilot_iter),
+                        index_count_(0),
+                        data_count_(0)
                         {}
 
         void Seek(const Slice& target) override;
@@ -125,6 +127,9 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
         bool block_iter_points_to_real_block_;
         SeekDataBlockIter block_iter_;
         SeekDataBlockIter* pilot_iter_;
+
+        uint32_t index_count_;
+        uint32_t data_count_;
 
         uint32_t GetIndexBlock() const;
         uint32_t GetDataBlock() const;

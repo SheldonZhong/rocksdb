@@ -238,6 +238,7 @@ void SeekTableBuilder::WriteBlock(SeekBlockBuilder* block,
                                     BlockHandle* handle,
                                     bool is_data_block) {
     WriteBlock(block->Finish(), handle, is_data_block);
+    handle->set_restarts(rep_->props.num_entries);
     block->Reset();
 }
 

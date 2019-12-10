@@ -315,6 +315,9 @@ void SeekTableIterator::InitDataBlock() {
     IndexValue v;
     v.DecodeFrom(&index_value, false, nullptr);
     table_->NewDataBlockIterator(v.handle, &block_iter_);
+    // assumes after initialize, without call to SeekToFirst
+    data_count_ = block_iter_.GetRestartIndex();
+    index_count_ = v.handle.restarts();
     block_iter_points_to_real_block_ = true;
 }
 
@@ -381,7 +384,12 @@ void SeekTableIterator::FollowAndGetPilot(PilotValue* pilot) {
     assert(Valid());
     Slice k = key();
     // we should avoid reseek
-    pilot_iter_->Seek(k);
+    // pilot_iter_->Seek(k);
+    // there is extra one for the first special key
+    uint32_t restart_point = index_count_ - data_count_
+                                + block_iter_.GetRestartIndex() + 1;
+    pilot_iter_->SeekToRestartPoint(restart_point);
+    pilot_iter_->ParseNextDataKey();
     assert(pilot_iter_->Valid());
     assert(k.compare(pilot_iter_->key()) == 0);
     GetPilot(pilot);
