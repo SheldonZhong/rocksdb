@@ -89,6 +89,9 @@ void SeekLevelIterator::SeekToFirst() {
     levels_ = pilot.levels_;
     if (!levels_.empty()) {
         current_iter_ = iters_[levels_[0] + 1];
+    } else {
+        current_iter_->GetPilot(&pilot);
+        levels_ = pilot.levels_;
     }
 }
 
