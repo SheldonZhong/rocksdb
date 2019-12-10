@@ -52,16 +52,19 @@ void BlockHandle::EncodeTo(std::string* dst) const {
   // Sanity check that all fields have been set
   assert(offset_ != ~static_cast<uint64_t>(0));
   assert(size_ != ~static_cast<uint64_t>(0));
+  assert(restarts_ != ~static_cast<uint32_t>(0));
   PutVarint64Varint64(dst, offset_, size_);
+  PutVarint32(dst, restarts_);
 }
 
 Status BlockHandle::DecodeFrom(Slice* input) {
-  if (GetVarint64(input, &offset_) && GetVarint64(input, &size_)) {
+  if (GetVarint64(input, &offset_) && GetVarint64(input, &size_) && GetVarint32(input, &restarts_)) {
     return Status::OK();
   } else {
     // reset in case failure after partially decoding
     offset_ = 0;
     size_ = 0;
+    restarts_ = 0;
     return Status::Corruption("bad block handle");
   }
 }

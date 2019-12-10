@@ -45,7 +45,7 @@ const int kMagicNumberLengthByte = 8;
 class BlockHandle {
  public:
   BlockHandle();
-  BlockHandle(uint64_t offset, uint64_t size);
+  BlockHandle(uint64_t offset, uint64_t size, uint32_t restats = 0);
 
   // The offset of the block in the file.
   uint64_t offset() const { return offset_; }
@@ -54,6 +54,10 @@ class BlockHandle {
   // The size of the stored block
   uint64_t size() const { return size_; }
   void set_size(uint64_t _size) { size_ = _size; }
+
+  // The restarts of the stored block
+  uint64_t restarts() const { return restarts_; }
+  void set_restarts(uint32_t _restarts) { restarts_ = _restarts; }
 
   void EncodeTo(std::string* dst) const;
   Status DecodeFrom(Slice* input);
@@ -69,11 +73,12 @@ class BlockHandle {
   static const BlockHandle& NullBlockHandle() { return kNullBlockHandle; }
 
   // Maximum encoding length of a BlockHandle
-  enum { kMaxEncodedLength = 10 + 10 };
+  enum { kMaxEncodedLength = 10 + 10 + 10};
 
  private:
   uint64_t offset_;
   uint64_t size_;
+  uint32_t restarts_;
 
   static const BlockHandle kNullBlockHandle;
 };
@@ -339,7 +344,7 @@ extern Status UncompressBlockContentsForCompressionType(
 inline BlockHandle::BlockHandle()
     : BlockHandle(~static_cast<uint64_t>(0), ~static_cast<uint64_t>(0)) {}
 
-inline BlockHandle::BlockHandle(uint64_t _offset, uint64_t _size)
-    : offset_(_offset), size_(_size) {}
+inline BlockHandle::BlockHandle(uint64_t _offset, uint64_t _size, uint32_t _restarts)
+    : offset_(_offset), size_(_size), restarts_(_restarts) {}
 
 }  // namespace rocksdb
