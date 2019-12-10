@@ -22,7 +22,8 @@ static inline const char* DecodeEntry(const char* p, const char* limit,
 
 class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
     public:
-        SeekDataBlockIter() {};
+        SeekDataBlockIter()
+        : data_(nullptr) {};
 
         virtual Slice value() const override {
             assert(Valid());
@@ -45,12 +46,15 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
 
         virtual Slice key() const override {
             assert(Valid());
-            return key_.GetKey();
+            return key_;
         }
 
         virtual Status status() const override { return status_; }
 
         void Invalidate(Status s) {
+            if (data_ != nullptr) {
+                delete[] data_;
+            }
             data_ = nullptr;
             current_ = restarts_;
             status_ = s;
@@ -61,12 +65,14 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
 
         void Initialize(const Comparator* comparator, const char* data, uint32_t restarts, uint32_t num_restarts) {
             comparator_ = comparator;
+            if (data_ != nullptr) {
+                delete[] data_;
+            }
             data_ = data;
             restarts_ = restarts;
             current_ = restarts_;
             num_restarts_ = num_restarts;
             restart_index_ = num_restarts_; // unknown
-            key_.SetIsUserKey(false);
         }
 
         uint32_t GetRestartPoint(uint32_t index) {
@@ -77,7 +83,7 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
         }
 
         void SeekToRestartPoint(uint32_t index) {
-            key_.Clear();
+            key_.clear();
             restart_index_ = index;
 
             uint32_t offset = GetRestartPoint(index);
@@ -99,8 +105,8 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
         inline bool BinarySeek(const Slice& target, uint32_t left, uint32_t right,
                                 uint32_t* index, const Comparator* comp);
         
-        inline int Compare(const IterKey& ikey, const Slice& b) const {
-            return comparator_->Compare(ikey.GetKey(), b);
+        inline int Compare(const Slice& key, const Slice& b) const {
+            return comparator_->Compare(key, b);
         }
 
         inline bool ParseNextDataKey(const char* limit = nullptr) {
@@ -127,7 +133,7 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
                 return false;
             }
 
-            key_.SetKey(Slice(p, key_length), true /* copy */);
+            key_ = Slice(p, key_length);
             value_ = Slice(p + key_length, value_length);
 
             while (restart_index_ + 1 <= num_restarts_ &&
@@ -150,7 +156,7 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
 
         uint32_t restarts_; // offset of restart array (where does restarts array start)
         uint32_t current_; // offset in data_ of current entry.
-        IterKey key_;
+        Slice key_;
         Slice value_;
         Status status_;
 };

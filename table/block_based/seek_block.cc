@@ -50,7 +50,7 @@ void SeekDataBlockIter::CorruptionError() {
     current_ = restarts_;
     restart_index_ = num_restarts_;
     status_ = Status::Corruption("bad entry in block");
-    key_.Clear();
+    key_.clear();
     value_.clear();
 }
 
@@ -166,7 +166,7 @@ void SeekDataBlockIter::Seek(const Slice& target) {
         // mark invalid
         current_ = restarts_;
         restart_index_ = num_restarts_;
-        key_.Clear();
+        key_.clear();
         value_.clear();
         return;
     }
