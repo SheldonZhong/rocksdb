@@ -109,6 +109,8 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
         Slice value() const override;
         Status status() const override;
 
+        void Next(int k);
+
         void ResetDataIter() {
             if (block_iter_points_to_real_block_) {
                 block_iter_.Invalidate(Status::OK());

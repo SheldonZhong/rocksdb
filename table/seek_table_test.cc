@@ -131,6 +131,63 @@ TEST_F(TableTest, SimpleTest) {
     delete iter;
 }
 
+TEST_F(TableTest, NextKTest) {
+    Random rnd(301);
+
+    std::vector<std::string> keys;
+    std::vector<std::string> values;
+    int num_records = 100000;
+
+    GenerateRandomKVs(&keys, &values, 0, num_records);
+
+    std::unique_ptr<WritableFileWriter> file_writer_;
+    std::unique_ptr<RandomAccessFileReader> file_reader_;
+    const Comparator* cmp = BytewiseComparator();
+
+    file_writer_.reset(test::GetWritableFileWriter(new test::StringSink(), ""));
+    SeekTableBuilder builder(*cmp, file_writer_.get());
+
+    for (int i = 0; i < num_records; i++) {
+        builder.Add(keys[i], values[i]);
+    }
+    Status s = builder.Finish();
+    ASSERT_TRUE(s.ok()) << s.ToString();
+    file_writer_->Flush();
+    EXPECT_EQ(static_cast<test::StringSink*>(file_writer_->writable_file())->contents().size(), 
+        builder.FileSize());
+    
+    file_reader_.reset(test::GetRandomAccessFileReader(new test::StringSource(
+      static_cast<test::StringSink*>(file_writer_->writable_file())->contents(),
+      1, false)));
+    
+    std::unique_ptr<SeekTable> reader;
+
+    SeekTable::Open(*cmp, std::move(file_reader_),
+      static_cast<test::StringSink*>(file_writer_->writable_file())->contents().size(),
+      &reader, 0);
+    SeekTableIterator* iter = reader->NewSeekTableIter();
+
+    for (int i = 0; i < num_records; i++) {
+      int index = rnd.Uniform(num_records);
+      Slice k(keys[index]);
+      iter->Seek(k);
+      ASSERT_TRUE(iter->Valid());
+      Slice v = iter->value();
+      ASSERT_EQ(v.ToString().compare(values[index]), 0);
+
+      int next = rnd.Uniform(num_records/2);
+      iter->Next(next);
+      if ((next + index) >= num_records) {
+        ASSERT_FALSE(iter->Valid());
+      } else {
+        bool valid = iter->Valid();
+        ASSERT_TRUE(iter->Valid());
+        v = iter->value();
+        ASSERT_EQ(v.ToString().compare(values[index + next]), 0);
+      }
+    }
+}
+
 } // namespace namerocksdb
 
 

@@ -395,6 +395,46 @@ void SeekTableIterator::FollowAndGetPilot(PilotValue* pilot) {
     GetPilot(pilot);
 }
 
+void SeekTableIterator::Next(int k) {
+    // move k
+    if (k <= 0) {
+        return;
+    }
+    if (k == 1) {
+        Next();
+        return;
+    }
+
+    // same block
+    uint32_t index = block_iter_.GetRestartIndex();
+    if (k + index < data_count_) {
+        block_iter_.SeekToRestartPoint(index + k);
+        block_iter_.ParseNextDataKey();
+        return;
+    }
+
+    //TODO: it would be efficient if index block supports
+    // random index access, the structure should be modified
+    do {
+        k -= (data_count_ - index);
+        index = 0;
+        index_iter_->Next();
+        if (!index_iter_->Valid()) {
+            block_iter_points_to_real_block_ = false;
+            return;
+        }
+        Slice value = index_iter_->value();
+        IndexValue entry;
+        entry.DecodeFrom(&value, false, nullptr);
+        data_count_ = entry.handle.restarts() - index_count_;
+        index_count_ = entry.handle.restarts(); 
+    } while (static_cast<uint32_t>(k) >= data_count_);
+
+    InitDataBlock();
+    block_iter_.SeekToRestartPoint(k);
+    block_iter_.ParseNextDataKey();
+}
+
 void SeekTableIterator::GetFirstPilot(PilotValue* pilot) {
     pilot_iter_->SeekToFirst();
     assert(pilot_iter_->Valid());
