@@ -45,6 +45,9 @@ class SeekLevelIterator : public InternalIterator {
             current_iter_ = iters_[iter_index];
         }
 
+        inline bool BinarySeek(const Slice& target, uint32_t left, uint32_t right,
+                                uint32_t* index, const Comparator* cmp, bool first = false);
+
         void Prev() override {}
         void SeekForPrev(const Slice& target) override {}
 

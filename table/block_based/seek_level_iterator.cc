@@ -16,7 +16,7 @@ SeekLevelIterator::SeekLevelIterator(
 
 void SeekLevelIterator::Seek(const Slice& target) {
     SeekTableIterator* index_level = iters_[0];
-
+    // TODO: add extra check to decide whether re-seek
     index_level->SeekForPrev(target);
     PilotValue pilot;
     if (index_level->Valid()) {
@@ -62,15 +62,98 @@ void SeekLevelIterator::Seek(const Slice& target) {
     current_ = 0;
     levels_ = pilot.levels_;
     // should be seek for previous
-    while (comp_.Compare(key(), target) < 0) {
-        Next();
+    // while (comp_.Compare(key(), target) < 0) {
+    //     Next();
+    // }
+    if (comp_.Compare(key(), target) < 0) {
+        uint32_t i;
+        bool s = BinarySeek(target, 0, levels_.size(), &i, &comp_, n == 0);
+        assert(s);
+        current_ = i;
+        current_iter_ = iters_[levels_[i] + 1];
     }
     // guarantee that scan to first key > target
 }
 
-// inline in .cc never define
-// void SeekLevelIterator::Next() {
-// }
+bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
+                                    uint32_t right, uint32_t* index, 
+                                    const Comparator* comp, bool first) {
+    // prepare occurrence array
+    // this could be moved out and cache if we don't need to re-seek
+    if (levels_.size() == 0) {
+        *index = 0;
+        return false;
+    }
+    std::vector<size_t> occur(levels_.size());
+    std::map<uint8_t, size_t> count;
+
+    for (size_t i = 0; i < levels_.size(); i++) {
+        uint8_t lvl = levels_[i];
+        if (count.count(lvl) == 0) {
+            count[lvl] = 0;
+        } else {
+            count[lvl]++;
+        }
+        occur[i] = count[lvl];
+    }
+
+    SeekTableIterator* iter = nullptr;
+    assert(left <= right);
+    while (left < right) {
+        uint32_t mid = (left + right) / 2;
+
+        uint8_t i = levels_[mid];
+        size_t kth = occur[mid];
+        iter = iters_[i + 1];
+        // save iterator states
+        const uint32_t index_state = iter->GetIndexBlock();
+        const uint32_t data_state = iter->GetDataBlock();
+        iter->Next(kth);
+        bool restore_index = index_state != iter->GetIndexBlock();
+        // calculate this is k-th keys in this iter
+        // where k is the number of occurrence in levels_
+        Slice mid_key = iter->key();
+        int cmp = comp->Compare(mid_key, target);
+        if (cmp < 0) {
+            left = mid + 1;
+        } else if (cmp > 0) {
+            right = mid;
+        } else {
+            left = right = mid;
+            break;
+        }
+        
+        if (restore_index) {
+            // restore iterator states
+            iter->index_iter_->SeekToRestartPoint(index_state);
+            iter->index_iter_->ParseNextDataKey();
+            iter->InitDataBlock();
+        }
+        // restoring states might have high overhead
+        iter->block_iter_.SeekToRestartPoint(data_state);
+        iter->block_iter_.ParseNextDataKey();
+    }
+    *index = left;
+
+    assert(iter != nullptr);
+    // synchronize iterators
+    count.erase(levels_[left]);
+    if (!first) {
+        iters_[0]->Next();
+    }
+    for (uint32_t i = left; i < levels_.size() && !count.empty(); i++) {
+        if (count.count(levels_[i]) != 0) {
+            count.erase(levels_[i]);
+            iters_[levels_[i] + 1]->Next(occur[i]);
+        }
+    }
+    if (!count.empty()) {
+        for (auto cc : count) {
+            iters_[cc.first + 1]->Next(cc.second + 1);
+        }
+    }
+    return true;
+}
 
 void SeekLevelIterator::SeekToFirst() {
     current_iter_ = iters_[0];
