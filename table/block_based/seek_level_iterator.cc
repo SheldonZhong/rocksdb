@@ -64,15 +64,18 @@ void SeekLevelIterator::Seek(const Slice& target) {
     current_ = 0;
     levels_ = pilot.levels_;
     // should be seek for previous
-    // while (comp_.Compare(key(), target) < 0) {
-    //     Next();
-    // }
-    if (comp_.Compare(key(), target) < 0) {
-        uint32_t i;
-        bool s = BinarySeek(target, 0, levels_.size(), &i, &comp_, n == 0);
-        assert(s);
-        current_ = i;
-        current_iter_ = iters_[levels_[i] + 1];
+    if (levels_.size() > kBinarySeekThreshold) {
+        if (comp_.Compare(key(), target) < 0) {
+            uint32_t i;
+            bool s = BinarySeek(target, 0, levels_.size(), &i, &comp_, n == 0);
+            assert(s);
+            current_ = i;
+            current_iter_ = iters_[levels_[i] + 1];
+        }
+    } else {
+        while (comp_.Compare(key(), target) < 0) {
+            Next();
+        }
     }
     // guarantee that scan to first key > target
 }

@@ -6,6 +6,8 @@
 namespace rocksdb
 {
 
+const size_t kBinarySeekThreshold = 8;
+
 class SeekLevelIterator : public InternalIterator {
     public:
         // keep the elements in order
