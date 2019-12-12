@@ -105,7 +105,7 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle, BlockContents* conten
     s = rep_->file->Read(handle.offset(),
                         n + kBlockTrailerSize,
                         &slice, buf);
-
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
     if (!s.ok()) {
         delete[] buf;
         return s;
@@ -251,8 +251,8 @@ void SeekTableIterator::SeekImpl(const Slice* target) {
             block_iter_points_to_real_block_ = false;
             return;
         }
+        InitDataBlock();
     }
-    InitDataBlock();
 
     if (target) {
         block_iter_.Seek(*target);
