@@ -6,8 +6,8 @@ namespace rocksdb {
 void PilotValue::EncodeTo(std::string* dst) const {
     PutVarint32(dst, static_cast<uint32_t>(index_block_.size()));
     for (size_t i = 0; i < index_block_.size(); i++) {
-        PutFixed32(dst, index_block_[i]);
-        PutFixed32(dst, data_block_[i]);
+        PutFixed16(dst, index_block_[i]);
+        PutFixed16(dst, data_block_[i]);
     }
 
     PutVarint32(dst, static_cast<uint32_t>(levels_.size()));
@@ -27,12 +27,12 @@ Status PilotValue::DecodeFrom(Slice* input) {
     data_block_.resize(num_levels);
 
     for (uint32_t i = 0; i < num_levels; i++) {
-        uint32_t buf;
-        if (!GetFixed32(input, &buf)) {
+        uint16_t buf;
+        if (!GetFixed16(input, &buf)) {
             return Status::Corruption("bad encode pilot value index_block");
         }
         index_block_[i] = buf;
-        if (!GetFixed32(input, &buf)) {
+        if (!GetFixed16(input, &buf)) {
             return Status::Corruption("bad encode pilot value data_block");
         }
         data_block_[i] = buf;
@@ -61,8 +61,8 @@ PilotBlockBuilder::PilotBlockBuilder()
 
 void PilotBlockBuilder::AddPilotEntry(
                                 const Slice& key,
-                                std::vector<uint32_t>& index_block,
-                                std::vector<uint32_t>& data_block,
+                                std::vector<uint16_t>& index_block,
+                                std::vector<uint16_t>& data_block,
                                 std::vector<uint8_t>& levels) {
     PilotValue entry(index_block, data_block, levels);
     std::string entry_encoded;
@@ -72,8 +72,8 @@ void PilotBlockBuilder::AddPilotEntry(
 }
 
 void PilotBlockBuilder::AddFirstEntry(std::vector<uint8_t>& levels) {
-    std::vector<uint32_t> index;
-    std::vector<uint32_t> data;
+    std::vector<uint16_t> index;
+    std::vector<uint16_t> data;
     AddPilotEntry("\0", index, data, levels);
 }
 

@@ -10,8 +10,8 @@ namespace rocksdb {
 
 struct PilotValue {
     // vector element must keep its order
-    PilotValue(std::vector<uint32_t>& index_block,
-                std::vector<uint32_t>& data_block,
+    PilotValue(std::vector<uint16_t>& index_block,
+                std::vector<uint16_t>& data_block,
                 std::vector<uint8_t>& levels)
         : index_block_(index_block),
         data_block_(data_block),
@@ -27,8 +27,8 @@ struct PilotValue {
     void EncodeTo(std::string* dst) const;
     Status DecodeFrom(Slice* input);
 
-    std::vector<uint32_t> index_block_;
-    std::vector<uint32_t> data_block_;
+    std::vector<uint16_t> index_block_;
+    std::vector<uint16_t> data_block_;
     std::vector<uint8_t> levels_;
 };
 
@@ -40,8 +40,8 @@ class PilotBlockBuilder {
         PilotBlockBuilder();
 
         void AddPilotEntry(const Slice& key,
-                            std::vector<uint32_t>& index_block,
-                            std::vector<uint32_t>& data_block,
+                            std::vector<uint16_t>& index_block,
+                            std::vector<uint16_t>& data_block,
                             std::vector<uint8_t>& levels);
 
         void AddFirstEntry(std::vector<uint8_t>& levels);
