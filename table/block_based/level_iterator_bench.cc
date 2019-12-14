@@ -338,8 +338,9 @@ int main(int argc, char** argv) {
     }
 
     std::cout.imbue(std::locale(""));
+    std::cout << "-----------------------------------------------------" << std::endl;
     std::cout << "number of records: " << num_records << std::endl;
-    std::cout << "numer of layers: " << layers << std::endl;
+    std::cout << "number of layers: " << layers << std::endl;
     std::cout << "random seed: " << rnd << std::endl << std::endl;
     bench->Prepare();
     bench->Finish();

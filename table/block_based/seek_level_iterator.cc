@@ -14,46 +14,49 @@ SeekLevelIterator::SeekLevelIterator(
     }
 }
 
+void SeekLevelIterator::Sync(int i) {
+    SeekTableIterator* iter = iters_[i + 1];
+    if (pilot_.index_block_[i] & 0x8000) {
+        iter->index_iter_->SeekToLast();
+    } else {
+        iter->index_iter_->SeekToRestartPoint(
+                            static_cast<uint32_t>(pilot_.index_block_[i]));
+        bool ok = iter->index_iter_->ParseNextDataKey();
+        assert(ok);
+    }
+    iter->InitDataBlock();
+    if (pilot_.data_block_[i] & 0x8000) {
+        iter->block_iter_.SeekToLast();
+    } else {
+        iter->block_iter_.SeekToRestartPoint(
+                            static_cast<uint32_t>(pilot_.data_block_[i]));
+        bool ok = iter->block_iter_.ParseNextDataKey();
+        assert(ok);
+    }
+}
+
 void SeekLevelIterator::Seek(const Slice& target) {
     SeekTableIterator* index_level = iters_[0];
     // TODO: add extra check to decide whether re-seek
     index_level->SeekForPrev(target);
-    PilotValue pilot;
     if (index_level->Valid()) {
-        index_level->FollowAndGetPilot(&pilot);
+        index_level->FollowAndGetPilot(&pilot_);
     } else {
-        index_level->GetFirstPilot(&pilot);
+        index_level->GetFirstPilot(&pilot_);
     }
-    size_t n = pilot.index_block_.size();
-    assert(n == pilot.data_block_.size());
+    size_t n = pilot_.index_block_.size();
+    assert(n == pilot_.data_block_.size());
     for (size_t i = 0; i < n; i++) {
-        SeekTableIterator* iter = iters_[i + 1];
-        if (pilot.index_block_[i] & 0x8000) {
-            iter->index_iter_->SeekToLast();
-        } else {
-            iter->index_iter_->SeekToRestartPoint(
-                                static_cast<uint32_t>(pilot.index_block_[i]));
-            bool ok = iter->index_iter_->ParseNextDataKey();
-            assert(ok);
-        }
-        iter->InitDataBlock();
-        if (pilot.data_block_[i] & 0x8000) {
-            iter->block_iter_.SeekToLast();
-        } else {
-            iter->block_iter_.SeekToRestartPoint(
-                                static_cast<uint32_t>(pilot.data_block_[i]));
-            bool ok = iter->block_iter_.ParseNextDataKey();
-            assert(ok);
-        }
+        Sync(i);
     }
 
     if (n == 0) {
         // seek the key before first key in top level
-        if (pilot.levels_.size() > 0) {
+        if (pilot_.levels_.size() > 0) {
             for (auto iter : iters_) {
                 iter->SeekToFirst();
             }
-            current_iter_ = iters_[pilot.levels_[0] + 1];
+            current_iter_ = iters_[pilot_.levels_[0] + 1];
         } else {
             current_iter_ = iters_[0];
         }
@@ -62,15 +65,14 @@ void SeekLevelIterator::Seek(const Slice& target) {
     }
 
     current_ = 0;
-    levels_ = pilot.levels_;
     // should be seek for previous
-    if (levels_.size() > kBinarySeekThreshold) {
+    if (pilot_.levels_.size() > kBinarySeekThreshold) {
         if (comp_.Compare(key(), target) < 0) {
             uint32_t i;
-            bool s = BinarySeek(target, 0, levels_.size(), &i, &comp_, n == 0);
+            bool s = BinarySeek(target, 0, pilot_.levels_.size(), &i, &comp_, n == 0);
             assert(s);
             current_ = i;
-            current_iter_ = iters_[levels_[i] + 1];
+            current_iter_ = iters_[pilot_.levels_[i] + 1];
         }
     } else {
         while (comp_.Compare(key(), target) < 0) {
@@ -85,15 +87,15 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
                                     const Comparator* comp, bool first) {
     // prepare occurrence array
     // this could be moved out and cache if we don't need to re-seek
-    if (levels_.size() == 0) {
+    if (pilot_.levels_.size() == 0) {
         *index = 0;
         return false;
     }
-    std::vector<size_t> occur(levels_.size());
+    std::vector<size_t> occur(pilot_.levels_.size());
     std::map<uint8_t, size_t> count;
 
-    for (size_t i = 0; i < levels_.size(); i++) {
-        uint8_t lvl = levels_[i];
+    for (size_t i = 0; i < pilot_.levels_.size(); i++) {
+        uint8_t lvl = pilot_.levels_[i];
         if (count.count(lvl) == 0) {
             count[lvl] = 0;
         } else {
@@ -107,7 +109,7 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
     while (left < right) {
         uint32_t mid = (left + right) / 2;
 
-        uint8_t i = levels_[mid];
+        uint8_t i = pilot_.levels_[mid];
         size_t kth = occur[mid];
         iter = iters_[i + 1];
         // save iterator states
@@ -142,14 +144,14 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
 
     assert(iter != nullptr);
     // synchronize iterators
-    count.erase(levels_[left]);
+    count.erase(pilot_.levels_[left]);
     if (!first) {
         iters_[0]->Next();
     }
-    for (uint32_t i = left; i < levels_.size() && !count.empty(); i++) {
-        if (count.count(levels_[i]) != 0) {
-            count.erase(levels_[i]);
-            iters_[levels_[i] + 1]->Next(occur[i]);
+    for (uint32_t i = left; i < pilot_.levels_.size() && !count.empty(); i++) {
+        if (count.count(pilot_.levels_[i]) != 0) {
+            count.erase(pilot_.levels_[i]);
+            iters_[pilot_.levels_[i] + 1]->Next(occur[i]);
         }
     }
     if (!count.empty()) {
@@ -166,20 +168,17 @@ void SeekLevelIterator::SeekToFirst() {
     for (auto iter : iters_) {
         iter->SeekToFirst();
     }
-    PilotValue pilot;
-    current_iter_->GetPilot(&pilot);
+    current_iter_->GetPilot(&pilot_);
     current_iter_->pilot_iter_->Next();
-    assert(pilot.data_block_.size() == 
-            pilot.index_block_.size());
-    assert(pilot.data_block_.size() == 0);
+    assert(pilot_.data_block_.size() == 
+            pilot_.index_block_.size());
+    assert(pilot_.data_block_.size() == 0);
 
     current_ = 0;
-    levels_ = pilot.levels_;
-    if (!levels_.empty()) {
-        current_iter_ = iters_[levels_[0] + 1];
+    if (!pilot_.levels_.empty()) {
+        current_iter_ = iters_[pilot_.levels_[0] + 1];
     } else {
-        current_iter_->GetPilot(&pilot);
-        levels_ = pilot.levels_;
+        current_iter_->GetPilot(&pilot_);
     }
 }
 
