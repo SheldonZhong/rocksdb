@@ -4,12 +4,19 @@
 #include "include/rocksdb/env.h"
 #include "test_util/testutil.h"
 
+#include <nlohmann/json.hpp>
+
 #include <chrono>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <algorithm>
+#include <sstream>
 
 namespace rocksdb
 {
 
+using json = nlohmann::json;
 using nano_seconds = std::chrono::duration<double, std::ratio<1, 1000000000>>;
 using micro_seconds = std::chrono::duration<double, std::ratio<1, 1000000>>;
 using milli_seconds = std::chrono::duration<double, std::ratio<1, 1000>>;
@@ -57,6 +64,10 @@ void GenerateRandomKVs(std::vector<std::string> *keys,
 }
 
 struct Timer {
+    json& base_config;
+    Timer(json& config)
+    : base_config(config) {}
+
     std::chrono::high_resolution_clock::time_point start;
     std::chrono::high_resolution_clock::time_point stop;
 
@@ -79,6 +90,10 @@ struct Timer {
             std::cout << "time spent " << milli_seconds(elapsed).count() << " ms" << std::endl;
         else
             std::cout << "time spent " << seconds(elapsed).count() << " s" << std::endl;
+        
+        json t_json;
+        t_json["config"] = base_config;
+        t_json["nano_sec"] = elapsed.count();
     }
 
     void Report(uint64_t nops) {
@@ -87,6 +102,10 @@ struct Timer {
         std::cout << nops << " operations" << std::endl;
         double IOPS = nops / elapsed.count() * nano_seconds(seconds(1)).count();
         std::cout << "OPS: " << IOPS << std::endl;
+
+        base_config["nano_sec"] = elapsed.count();
+        base_config["operations"] = nops;
+        base_config["OPS"] = IOPS;
     }
 };
 
@@ -108,15 +127,20 @@ struct Benchmark {
 
     std::vector<int> sequences;
 
+    json base_config;
     Timer timer;
 
-    Benchmark(int _num_records = 100000, int _layers = 5, int _rnd = 1234)
+    std::string path;
+
+    Benchmark(int _num_records = 100000, int _layers = 5, int _rnd = 1234, std::string _path = "./")
     : rnd(_rnd),
     num_records(_num_records),
     cmp(BytewiseComparator()),
     layers(_layers),
     readers(new SeekTable*[layers]),
-    iters(new SeekTableIterator*[layers])
+    iters(new SeekTableIterator*[layers]),
+    timer(base_config),
+    path(_path)
     {
         GenerateRandomKVs(&keys, &values, 0, num_records);
         file_reader.resize(layers);
@@ -127,6 +151,15 @@ struct Benchmark {
         for (int i = 0; i < num_records; i++) {
             sequences.push_back(rnd.Uniform(layers));
         }
+        std::cout.imbue(std::locale(""));
+        std::cout << "-----------------------------------------------------" << std::endl;
+        std::cout << "number of records: " << num_records << std::endl;
+        std::cout << "number of layers: " << layers << std::endl;
+        std::cout << "random seed: " << _rnd << std::endl << std::endl;
+
+        base_config["num_records"] = num_records;
+        base_config["num_layers"] = layers;
+        base_config["rnd_seed"] = _rnd;
     }
 
     virtual ~Benchmark() {
@@ -175,7 +208,9 @@ struct Benchmark {
         }
         assert(count == num_records);
         timer.Tok();
+        base_config["type"] = "next";
         timer.Report(count);
+        DumpJSON();
         
         for (int nexts = 0; nexts < 50; nexts += 10) {
             count = 0;
@@ -200,8 +235,27 @@ struct Benchmark {
                 } while (next_index < end);
             }
             timer.Tok();
+            base_config["type"] = "seek-next";
+            base_config["num_nexts"] = nexts;
             timer.Report(count);
+            DumpJSON();
         }
+    }
+
+    void DumpJSON() {
+        std::string fname = GetCurrentTimeForFileName();
+        std::ofstream out(path + fname + ".json");
+        out << std::setw(4) << base_config << std::endl;
+        out.close();
+    }
+
+    std::string GetCurrentTimeForFileName() {
+        auto time = std::time(nullptr);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&time), "%F_%T"); // ISO 8601 without timezone information.
+        auto s = ss.str();
+        std::replace(s.begin(), s.end(), ':', '_');
+        return s;
     }
 };
 
@@ -214,6 +268,7 @@ struct MergingBench : public Benchmark {
 
     void Prepare() override {
         std::cout << "Merging seek benchmark" << std::endl;
+        base_config["bench"] = "merging";
         for (int i = 0; i < layers; i++) {
             SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[i].get());
             for (int idx = 0; idx < num_records; idx++) {
@@ -254,6 +309,7 @@ struct SeekBench : public Benchmark {
 
     void Prepare() override {
         std::cout << "Pilot block seek benchmark" << std::endl;
+        base_config["bench"] = "seek";
         for (int i = 1; i < layers; i++) {
             SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[i].get());
             for (int idx = 0; idx < num_records; idx++) {
@@ -304,7 +360,7 @@ struct SeekBench : public Benchmark {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cout << argv[0] << " [m/p] [num_records] [layers] [rnd]" << std::endl;
+        std::cout << argv[0] << " [m/p] [num_records] [layers] [rnd] [path]" << std::endl;
         std::cout << "m for merging iterator" << std::endl;
         std::cout << "p for pilot guided iterator" << std::endl;
         exit(1);
@@ -322,6 +378,12 @@ int main(int argc, char** argv) {
         rnd = std::atoi(argv[4]);
     }
 
+    
+    std::string path = "./";
+    if (argc > 5) {
+        path.assign(argv[5]);
+    }
+
     rocksdb::Benchmark* bench;
     switch (*argv[1])
     {
@@ -337,11 +399,6 @@ int main(int argc, char** argv) {
         break;
     }
 
-    std::cout.imbue(std::locale(""));
-    std::cout << "-----------------------------------------------------" << std::endl;
-    std::cout << "number of records: " << num_records << std::endl;
-    std::cout << "number of layers: " << layers << std::endl;
-    std::cout << "random seed: " << rnd << std::endl << std::endl;
     bench->Prepare();
     bench->Finish();
     bench->Run();
