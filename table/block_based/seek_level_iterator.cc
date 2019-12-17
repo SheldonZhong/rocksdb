@@ -82,6 +82,55 @@ void SeekLevelIterator::Seek(const Slice& target) {
     // guarantee that scan to first key > target
 }
 
+// tries to access key at idx
+// lazily count idx-th key
+// the key is occur_[idx]-th key in count_[level]
+// where level = pilot_.levels_[idx]
+void SeekLevelIterator::lazyCount(uint32_t idx) {
+    if (idx >= occur_.size()) {
+        // scan more
+        for (size_t i = occur_.size(); i <= idx; i++) {
+            uint8_t lvl = pilot_.levels_[i];
+            if (count_.count(lvl) == 0) {
+                count_[lvl] = 0;
+            } else {
+                count_[lvl]++;
+            }
+            occur_.push_back(count_[lvl]);
+        }
+    }
+}
+
+void SeekLevelIterator::pushCursor(uint32_t left, bool first) {
+    count_.erase(pilot_.levels_[left]);
+    if (!first) {
+        iters_[0]->Next();
+    }
+
+    for (uint32_t i = left + 1; i < occur_.size(); i++) {
+        uint8_t lvl = pilot_.levels_[i];
+        if (count_[lvl] == 0) {
+            count_.erase(lvl);
+        } else {
+            count_[lvl]--;
+        }
+    }
+    // may overflow
+    for (uint32_t i = left; i != 0; i--) {
+        uint8_t lvl = pilot_.levels_[i];
+        if (count_.count(lvl) != 0) {
+            count_.erase(lvl);
+            iters_[lvl + 1]->Next(occur_[i] + 1);
+        }
+    }
+
+    if (!count_.empty() || left == 0) {
+        for (auto cc : count_) {
+            iters_[cc.first + 1]->Next();
+        }
+    }
+}
+
 bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
                                     uint32_t right, uint32_t* index, 
                                     const Comparator* comp, bool first) {
@@ -91,26 +140,14 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
         *index = 0;
         return false;
     }
-    std::vector<size_t> occur(pilot_.levels_.size());
-    std::map<uint8_t, size_t> count;
-
-    for (size_t i = 0; i < pilot_.levels_.size(); i++) {
-        uint8_t lvl = pilot_.levels_[i];
-        if (count.count(lvl) == 0) {
-            count[lvl] = 0;
-        } else {
-            count[lvl]++;
-        }
-        occur[i] = count[lvl];
-    }
 
     SeekTableIterator* iter = nullptr;
     assert(left <= right);
     while (left < right) {
         uint32_t mid = (left + right) / 2;
-
+        lazyCount(mid);
+        size_t kth = occur_[mid];
         uint8_t i = pilot_.levels_[mid];
-        size_t kth = occur[mid];
         iter = iters_[i + 1];
         // save iterator states
         const uint32_t index_state = iter->GetIndexBlock();
@@ -143,22 +180,10 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
     *index = left;
 
     assert(iter != nullptr);
-    // synchronize iterators
-    count.erase(pilot_.levels_[left]);
-    if (!first) {
-        iters_[0]->Next();
-    }
-    for (uint32_t i = left; i < pilot_.levels_.size() && !count.empty(); i++) {
-        if (count.count(pilot_.levels_[i]) != 0) {
-            count.erase(pilot_.levels_[i]);
-            iters_[pilot_.levels_[i] + 1]->Next(occur[i]);
-        }
-    }
-    if (!count.empty()) {
-        for (auto cc : count) {
-            iters_[cc.first + 1]->Next(cc.second + 1);
-        }
-    }
+    pushCursor(left, first);
+    // TODO: could be cached
+    count_.clear();
+    occur_.clear();
     return true;
 }
 

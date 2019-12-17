@@ -58,9 +58,16 @@ class SeekLevelIterator : public InternalIterator {
 
     private:
         inline void Sync(int i);
+        inline void lazyCount(uint32_t i);
+        inline void pushCursor(uint32_t left, bool first = false);
         std::vector<SeekTableIterator*> iters_;
         const Comparator& comp_;
+
+        // these could be cached
         PilotValue pilot_;
+        std::vector<size_t> occur_;
+        std::map<uint8_t, size_t> count_;
+
         size_t current_;
         SeekTableIterator* current_iter_;
 };

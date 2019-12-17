@@ -227,7 +227,9 @@ TEST_F(LevelTest, RandomInsertTest) {
         do {
             Slice seek_key = level_iter->key();
             int cmpresult = seek_key.ToString().compare(keys[next_index]);
-            ASSERT_EQ(seek_key.ToString().compare(keys[next_index]), 0);
+            ASSERT_EQ(seek_key.ToString().compare(keys[next_index]), 0) 
+                    << "occur at " << i << " index " << index << " next_index "
+                    << next_index << std::endl;;
             ASSERT_TRUE(level_iter->Valid());
             Slice v = level_iter->value();
             ASSERT_EQ(v.ToString().compare(values[next_index]), 0);
