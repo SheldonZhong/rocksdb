@@ -7,7 +7,8 @@ SeekLevelIterator::SeekLevelIterator(
                                 SeekTableIterator** iters,
                                 int n,
                                 const Comparator& comp)
-                                : comp_(comp) {
+                                : comp_(comp),
+                                count_mask_(0) {
     assert(iters != nullptr && n > 0);
     for (int i = 0; i < n; i++) {
         iters_.push_back(iters[i]);
@@ -94,9 +95,9 @@ void SeekLevelIterator::lazyCount(uint32_t idx) {
         // scan more
         for (size_t i = occur_.size(); i <= idx; i++) {
             uint8_t lvl = pilot_.levels_[i];
-            if (count_mask_[lvl] == 0) {
+            if ((count_mask_ & (1 << lvl)) == 0) {
                 count_[lvl] = 0;
-                count_mask_[lvl] = 1;
+                count_mask_ |= (1 << lvl);
             } else {
                 count_[lvl]++;
             }
@@ -107,7 +108,8 @@ void SeekLevelIterator::lazyCount(uint32_t idx) {
 
 void SeekLevelIterator::pushCursor(uint32_t left, bool first) {
     // count_.erase(pilot_.levels_[left]);
-    count_mask_[pilot_.levels_[left]] = 0;
+    // count_mask_[pilot_.levels_[left]] = 0;
+    count_mask_ &= ~(1 << pilot_.levels_[left]);
     if (!first) {
         iters_[0]->Next();
     }
@@ -116,7 +118,8 @@ void SeekLevelIterator::pushCursor(uint32_t left, bool first) {
         uint8_t lvl = pilot_.levels_[i];
         if (count_[lvl] == 0) {
             // count_.erase(lvl);
-            count_mask_[lvl] = 0;
+            // count_mask_[lvl] = 0;
+            count_mask_ &= ~(1 << lvl);
         } else {
             count_[lvl]--;
         }
@@ -124,17 +127,18 @@ void SeekLevelIterator::pushCursor(uint32_t left, bool first) {
     // may overflow
     for (uint32_t i = left; i != 0; i--) {
         uint8_t lvl = pilot_.levels_[i];
-        if (count_mask_[lvl] != 0) {
+        if ((count_mask_ & (1 << lvl)) != 0) {
             // count_.erase(lvl);
-            count_mask_[lvl] = 0;
+            // count_mask_[lvl] = 0;
+            count_mask_ &= ~(1 << lvl);
             size_t next = occur_[i] + 1 - states_[lvl + 1];
             iters_[lvl + 1]->Next(next);
         }
     }
 
-    if (count_mask_.any() || left == 0) {
+    if (count_mask_ != 0 || left == 0) {
         for (size_t i = 0; i < count_.size(); i++) {
-            if (count_mask_[i] == 1 && states_[i + 1] == 0) {
+            if ((count_mask_ & (1 << i)) && states_[i + 1] == 0) {
                 iters_[i + 1]->Next();
             }
         }
@@ -197,7 +201,7 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
     assert(iter != nullptr);
     pushCursor(left, first);
     // TODO: could be cached
-    count_mask_.reset();
+    count_mask_ = 0;
     for (size_t i = 0; i < count_.size(); i++) {
         count_[i] = 0;
     }

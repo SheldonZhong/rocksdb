@@ -70,7 +70,7 @@ class SeekLevelIterator : public InternalIterator {
         std::vector<size_t> occur_;
         std::vector<size_t> count_;
         // 256 correspounds to uint8_t
-        std::bitset<256> count_mask_;
+        uint64_t count_mask_;
 
         size_t current_;
         SeekTableIterator* current_iter_;
