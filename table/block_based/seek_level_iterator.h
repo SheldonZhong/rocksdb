@@ -2,6 +2,7 @@
 
 #include "table/block_based/seek_table_reader.h"
 #include "table/block_based/seek_block.h"
+#include <bitset>
 
 namespace rocksdb
 {
@@ -67,7 +68,9 @@ class SeekLevelIterator : public InternalIterator {
         // these could be cached
         PilotValue pilot_;
         std::vector<size_t> occur_;
-        std::map<uint8_t, size_t> count_;
+        std::vector<size_t> count_;
+        // 256 correspounds to uint8_t
+        std::bitset<256> count_mask_;
 
         size_t current_;
         SeekTableIterator* current_iter_;

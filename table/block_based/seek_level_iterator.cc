@@ -13,6 +13,7 @@ SeekLevelIterator::SeekLevelIterator(
         iters_.push_back(iters[i]);
         states_.push_back(0);
     }
+    count_.resize(n);
 }
 
 void SeekLevelIterator::Sync(int i) {
@@ -93,8 +94,9 @@ void SeekLevelIterator::lazyCount(uint32_t idx) {
         // scan more
         for (size_t i = occur_.size(); i <= idx; i++) {
             uint8_t lvl = pilot_.levels_[i];
-            if (count_.count(lvl) == 0) {
+            if (count_mask_[lvl] == 0) {
                 count_[lvl] = 0;
+                count_mask_[lvl] = 1;
             } else {
                 count_[lvl]++;
             }
@@ -104,7 +106,8 @@ void SeekLevelIterator::lazyCount(uint32_t idx) {
 }
 
 void SeekLevelIterator::pushCursor(uint32_t left, bool first) {
-    count_.erase(pilot_.levels_[left]);
+    // count_.erase(pilot_.levels_[left]);
+    count_mask_[pilot_.levels_[left]] = 0;
     if (!first) {
         iters_[0]->Next();
     }
@@ -112,7 +115,8 @@ void SeekLevelIterator::pushCursor(uint32_t left, bool first) {
     for (uint32_t i = left + 1; i < occur_.size(); i++) {
         uint8_t lvl = pilot_.levels_[i];
         if (count_[lvl] == 0) {
-            count_.erase(lvl);
+            // count_.erase(lvl);
+            count_mask_[lvl] = 0;
         } else {
             count_[lvl]--;
         }
@@ -120,17 +124,18 @@ void SeekLevelIterator::pushCursor(uint32_t left, bool first) {
     // may overflow
     for (uint32_t i = left; i != 0; i--) {
         uint8_t lvl = pilot_.levels_[i];
-        if (count_.count(lvl) != 0) {
-            count_.erase(lvl);
+        if (count_mask_[lvl] != 0) {
+            // count_.erase(lvl);
+            count_mask_[lvl] = 0;
             size_t next = occur_[i] + 1 - states_[lvl + 1];
             iters_[lvl + 1]->Next(next);
         }
     }
 
-    if (!count_.empty() || left == 0) {
-        for (auto cc : count_) {
-            if (states_[cc.first + 1] == 0) {
-                iters_[cc.first + 1]->Next();
+    if (count_mask_.any() || left == 0) {
+        for (size_t i = 0; i < count_.size(); i++) {
+            if (count_mask_[i] == 1 && states_[i + 1] == 0) {
+                iters_[i + 1]->Next();
             }
         }
     }
@@ -192,7 +197,10 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
     assert(iter != nullptr);
     pushCursor(left, first);
     // TODO: could be cached
-    count_.clear();
+    count_mask_.reset();
+    for (size_t i = 0; i < count_.size(); i++) {
+        count_[i] = 0;
+    }
     occur_.clear();
     return true;
 }
