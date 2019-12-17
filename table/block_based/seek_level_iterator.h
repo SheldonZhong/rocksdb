@@ -61,6 +61,7 @@ class SeekLevelIterator : public InternalIterator {
         inline void lazyCount(uint32_t i);
         inline void pushCursor(uint32_t left, bool first = false);
         std::vector<SeekTableIterator*> iters_;
+        std::vector<uint32_t> states_;
         const Comparator& comp_;
 
         // these could be cached

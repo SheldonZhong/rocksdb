@@ -11,6 +11,7 @@ SeekLevelIterator::SeekLevelIterator(
     assert(iters != nullptr && n > 0);
     for (int i = 0; i < n; i++) {
         iters_.push_back(iters[i]);
+        states_.push_back(0);
     }
 }
 
@@ -33,6 +34,7 @@ void SeekLevelIterator::Sync(int i) {
         bool ok = iter->block_iter_.ParseNextDataKey();
         assert(ok);
     }
+    states_[i + 1] = 0;
 }
 
 void SeekLevelIterator::Seek(const Slice& target) {
@@ -120,13 +122,16 @@ void SeekLevelIterator::pushCursor(uint32_t left, bool first) {
         uint8_t lvl = pilot_.levels_[i];
         if (count_.count(lvl) != 0) {
             count_.erase(lvl);
-            iters_[lvl + 1]->Next(occur_[i] + 1);
+            size_t next = occur_[i] + 1 - states_[lvl + 1];
+            iters_[lvl + 1]->Next(next);
         }
     }
 
     if (!count_.empty() || left == 0) {
         for (auto cc : count_) {
-            iters_[cc.first + 1]->Next();
+            if (states_[cc.first + 1] == 0) {
+                iters_[cc.first + 1]->Next();
+            }
         }
     }
 }
@@ -149,10 +154,11 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
         size_t kth = occur_[mid];
         uint8_t i = pilot_.levels_[mid];
         iter = iters_[i + 1];
+        size_t move = kth - states_[i + 1];
         // save iterator states
         const uint32_t index_state = iter->GetIndexBlock();
         const uint32_t data_state = iter->GetDataBlock();
-        iter->Next(kth);
+        iter->Next(move);
         bool restore_index = index_state != iter->GetIndexBlock();
         // calculate this is k-th keys in this iter
         // where k is the number of occurrence in levels_
@@ -160,22 +166,26 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
         int cmp = comp->Compare(mid_key, target);
         if (cmp < 0) {
             left = mid + 1;
+            states_[i + 1] = kth;
         } else if (cmp > 0) {
             right = mid;
+
+            // only restore when seek to a smaller key
+            if (restore_index) {
+                // restore iterator states
+                iter->index_iter_->SeekToRestartPoint(index_state);
+                iter->index_iter_->ParseNextDataKey();
+                iter->InitDataBlock();
+            }
+            // restoring states might have high overhead
+            iter->block_iter_.SeekToRestartPoint(data_state);
+            iter->block_iter_.ParseNextDataKey();
         } else {
             left = right = mid;
+            states_[i + 1] = kth;
             break;
         }
         
-        if (restore_index) {
-            // restore iterator states
-            iter->index_iter_->SeekToRestartPoint(index_state);
-            iter->index_iter_->ParseNextDataKey();
-            iter->InitDataBlock();
-        }
-        // restoring states might have high overhead
-        iter->block_iter_.SeekToRestartPoint(data_state);
-        iter->block_iter_.ParseNextDataKey();
     }
     *index = left;
 
