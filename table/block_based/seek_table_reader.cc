@@ -312,6 +312,7 @@ void SeekTableIterator::SeekToLast() {
 
 void SeekTableIterator::InitDataBlock() {
     Slice index_value = index_iter_->value();
+    // TODO: remove class instantiation to avoid constructor overhead
     IndexValue v;
     v.DecodeFrom(&index_value, false, nullptr);
     table_->NewDataBlockIterator(v.handle, &block_iter_);
@@ -407,7 +408,9 @@ void SeekTableIterator::Next(int k) {
 
     // same block
     uint32_t index = block_iter_.GetRestartIndex();
-    if (k + index < data_count_) {
+    const uint32_t target = index_count_ - data_count_
+                        + index + static_cast<uint32_t>(k);
+    if (target < index_count_) {
         block_iter_.SeekToRestartPoint(index + k);
         block_iter_.ParseNextDataKey();
         return;
@@ -416,22 +419,20 @@ void SeekTableIterator::Next(int k) {
     //TODO: it would be efficient if index block supports
     // random index access, the structure should be modified
     do {
-        k -= (data_count_ - index);
-        index = 0;
         index_iter_->Next();
         if (!index_iter_->Valid()) {
             block_iter_points_to_real_block_ = false;
             return;
         }
         Slice value = index_iter_->value();
+        // TODO: remove constructor
         IndexValue entry;
         entry.DecodeFrom(&value, false, nullptr);
-        data_count_ = entry.handle.restarts() - index_count_;
         index_count_ = entry.handle.restarts(); 
-    } while (static_cast<uint32_t>(k) >= data_count_);
+    } while (target >= index_count_);
 
     InitDataBlock();
-    block_iter_.SeekToRestartPoint(k);
+    block_iter_.SeekToRestartPoint(target - index_count_ + data_count_);
     block_iter_.ParseNextDataKey();
 }
 

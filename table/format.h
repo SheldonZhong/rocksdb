@@ -56,7 +56,7 @@ class BlockHandle {
   void set_size(uint64_t _size) { size_ = _size; }
 
   // The restarts of the stored block
-  uint64_t restarts() const { return restarts_; }
+  uint32_t restarts() const { return restarts_; }
   void set_restarts(uint32_t _restarts) { restarts_ = _restarts; }
 
   void EncodeTo(std::string* dst) const;
