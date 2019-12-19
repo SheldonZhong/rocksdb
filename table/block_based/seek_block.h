@@ -146,11 +146,12 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
         }
 
         inline uint32_t GetRestartIndex() const { return restart_index_; }
-
+    protected:
+        uint32_t num_restarts_;
+        friend class SeekTableIterator;
     private:
         const Comparator* comparator_;
         const char* data_; // block contents
-        uint32_t num_restarts_;
 
         uint32_t restart_index_; // current index
 

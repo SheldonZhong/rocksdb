@@ -418,18 +418,53 @@ void SeekTableIterator::Next(int k) {
 
     //TODO: it would be efficient if index block supports
     // random index access, the structure should be modified
-    do {
+    Slice value;
+    IndexValue entry;
+    uint32_t left = index_iter_->GetRestartIndex();
+    uint32_t right = index_iter_->num_restarts_;
+    while (left < right) {
+        uint32_t mid = (left + right) / 2;
+        index_iter_->SeekToRestartPoint(mid);
+        index_iter_->ParseNextDataKey();
+
+        value = index_iter_->value();
+        entry.DecodeFrom(&value, false, nullptr);
+        index_count_ = entry.handle.restarts();
+
+        if (index_count_ < target) {
+            left = mid + 1;
+        } else if (index_count_ > target) {
+            right = mid;
+        } else {
+            left = right = mid;
+            // left = mid + 1;
+            // right = left + 1;
+        }
+    }
+    if (left >= index_iter_->num_restarts_) {
         index_iter_->Next();
         if (!index_iter_->Valid()) {
             block_iter_points_to_real_block_ = false;
             return;
         }
-        Slice value = index_iter_->value();
+    }
+    index_iter_->SeekToRestartPoint(left);
+    index_iter_->ParseNextDataKey();
+    value = index_iter_->value();
+    entry.DecodeFrom(&value, false, nullptr);
+    index_count_ = entry.handle.restarts();
+    if (target == index_count_) {
+        index_iter_->Next();
+        if (!index_iter_->Valid()) {
+            block_iter_points_to_real_block_ = false;
+            return;
+        }
+        value = index_iter_->value();
         // TODO: remove constructor
-        IndexValue entry;
         entry.DecodeFrom(&value, false, nullptr);
         index_count_ = entry.handle.restarts(); 
-    } while (target >= index_count_);
+    }
+    assert(target < index_count_);
 
     InitDataBlock();
     block_iter_.SeekToRestartPoint(target - index_count_ + data_count_);
