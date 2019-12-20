@@ -11,7 +11,7 @@ void PilotValue::EncodeTo(std::string* dst) const {
     }
 
     PutVarint32(dst, levels_size_);
-    dst->append((char*)(levels_), levels_size_);
+    dst->append(reinterpret_cast<char*>(levels_), levels_size_);
 }
 
 Status PilotValue::DecodeFrom(Slice* input) {
