@@ -16,6 +16,14 @@ class SeekLevelIterator : public InternalIterator {
                                     int n,
                                     const Comparator& comp);
 
+        ~SeekLevelIterator() {
+            if (occur_ != nullptr) {
+                delete[] occur_;
+            }
+            if (count_ != nullptr) {
+                delete[] count_;
+            }
+        }
         bool Valid() const;
         void SeekToFirst() override;
         void SeekToLast() override {}
@@ -67,8 +75,10 @@ class SeekLevelIterator : public InternalIterator {
 
         // these could be cached
         PilotValue pilot_;
-        std::vector<size_t> occur_;
-        std::vector<size_t> count_;
+        size_t* occur_;
+        size_t occur_size_;
+        size_t* count_;
+        size_t count_size_;
         // 256 correspounds to uint8_t
         uint64_t count_mask_;
 
