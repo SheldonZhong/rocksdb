@@ -10,12 +10,8 @@ void PilotValue::EncodeTo(std::string* dst) const {
         PutFixed16(dst, data_block_[i]);
     }
 
-    PutVarint32(dst, static_cast<uint32_t>(levels_.size()));
-    char put[levels_.size()];
-    for (size_t i = 0; i < levels_.size(); i++) {
-        put[i] = static_cast<char>(levels_[i]);
-    }
-    dst->append(put, levels_.size());
+    PutVarint32(dst, levels_size_);
+    dst->append((char*)(levels_), levels_size_);
 }
 
 Status PilotValue::DecodeFrom(Slice* input) {
@@ -42,16 +38,16 @@ Status PilotValue::DecodeFrom(Slice* input) {
     if (!GetVarint32(input, &n)) {
         return Status::Corruption("bad encode pilot value level start");
     }
-    levels_.resize(n);
-    for (uint32_t i = 0; i < n; i++) {
-        uint8_t buf;
-        if (input->size() < sizeof(uint8_t)) {
-            return Status::Corruption("bad encode pilot value levels");
-        }
-        memcpy(&buf, input->data(), sizeof(buf));
-        input->remove_prefix(sizeof(uint8_t));
-        levels_[i] = buf;
+    levels_size_ = n;
+    if (levels_ != nullptr) {
+        delete[] levels_;
     }
+    levels_ = new uint8_t[n];
+    if (input->size() < sizeof(uint8_t) * n) {
+        return Status::Corruption("bad encode pilot value levels");
+    }
+    memcpy(levels_, input->data(), sizeof(uint8_t) * n);
+    input->remove_prefix(sizeof(uint8_t) * n);
 
     return Status::OK();
 }

@@ -25,7 +25,7 @@ class SeekLevelIterator : public InternalIterator {
             if (current_iter_ != iters_[0]) {
                 current_++;
             }
-            if (current_ >= pilot_.levels_.size()) {
+            if (current_ >= pilot_.levels_size_) {
                 current_iter_ = iters_[0];
                 current_ = 0;
                 // follow and get has extra seek in pilot_iter

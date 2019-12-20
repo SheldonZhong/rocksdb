@@ -56,7 +56,7 @@ void SeekLevelIterator::Seek(const Slice& target) {
 
     if (n == 0) {
         // seek the key before first key in top level
-        if (pilot_.levels_.size() > 0) {
+        if (pilot_.levels_size_ > 0) {
             for (auto iter : iters_) {
                 iter->SeekToFirst();
             }
@@ -70,10 +70,10 @@ void SeekLevelIterator::Seek(const Slice& target) {
 
     current_ = 0;
     // should be seek for previous
-    if (pilot_.levels_.size() > kBinarySeekThreshold) {
+    if (pilot_.levels_size_ > kBinarySeekThreshold) {
         if (comp_.Compare(key(), target) < 0) {
             uint32_t i;
-            bool s = BinarySeek(target, 0, pilot_.levels_.size(), &i, &comp_, n == 0);
+            bool s = BinarySeek(target, 0, pilot_.levels_size_, &i, &comp_, n == 0);
             assert(s);
             current_ = i;
             current_iter_ = iters_[pilot_.levels_[i] + 1];
@@ -150,7 +150,7 @@ bool SeekLevelIterator::BinarySeek(const Slice& target, uint32_t left,
                                     const Comparator* comp, bool first) {
     // prepare occurrence array
     // this could be moved out and cache if we don't need to re-seek
-    if (pilot_.levels_.size() == 0) {
+    if (pilot_.levels_size_ == 0) {
         *index = 0;
         return false;
     }
@@ -222,7 +222,7 @@ void SeekLevelIterator::SeekToFirst() {
     assert(pilot_.data_block_.size() == 0);
 
     current_ = 0;
-    if (!pilot_.levels_.empty()) {
+    if (pilot_.levels_size_ != 0) {
         current_iter_ = iters_[pilot_.levels_[0] + 1];
     } else {
         current_iter_->GetPilot(&pilot_);
