@@ -261,6 +261,32 @@ void SeekTableIterator::SeekImpl(const Slice* target) {
     }
 }
 
+void SeekTableIterator::HintedSeek(const Slice& target,
+                    uint32_t index_left, uint32_t index_right,
+                    uint32_t data_left, uint32_t data_right) {
+    bool seek_index = true;
+    if (block_iter_.Valid() && index_iter_->Valid()) {
+            if (comp_.Compare(target,
+                                block_iter_.key()) > 0 &&
+                comp_.Compare(target,
+                                index_iter_->key()) < 0) {
+                seek_index = false;
+            }
+    }
+
+    if (seek_index) {
+        index_iter_->HintedSeek(target, index_left, index_right);
+
+        if (!index_iter_->Valid()) {
+            block_iter_points_to_real_block_ = false;
+            return;
+        }
+        InitDataBlock();
+    }
+
+    block_iter_.HintedSeek(target, data_left, data_right);
+}
+
 void SeekTableIterator::Prev() {
     assert(block_iter_points_to_real_block_);
     block_iter_.Prev();

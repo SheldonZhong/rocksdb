@@ -34,6 +34,8 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
 
         virtual void Seek(const Slice& target) override;
 
+        void HintedSeek(const Slice& target, uint32_t left, uint32_t right);
+
         virtual void SeekForPrev(const Slice& target) override;
 
         virtual void Prev() override;

@@ -110,6 +110,9 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
         Status status() const override;
 
         void Next(int k);
+        void HintedSeek(const Slice& target,
+                    uint32_t index_left, uint32_t index_right,
+                    uint32_t data_left, uint32_t data_right);
 
         void ResetDataIter() {
             if (block_iter_points_to_real_block_) {

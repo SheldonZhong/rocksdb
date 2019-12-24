@@ -153,11 +153,15 @@ bool SeekDataBlockIter::BinarySeek(const Slice& target, uint32_t left,
 }
 
 void SeekDataBlockIter::Seek(const Slice& target) {
+    HintedSeek(target, 0, num_restarts_);
+}
+
+void SeekDataBlockIter::HintedSeek(const Slice& target, uint32_t left, uint32_t right) {
     if (data_ == nullptr) {
         return;
     }
     uint32_t index = 0;
-    bool ok = BinarySeek(target, 0, num_restarts_, &index, comparator_);
+    bool ok = BinarySeek(target, left, right, &index, comparator_);
     if (!ok) {
         return;
     }
