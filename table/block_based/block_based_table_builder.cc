@@ -393,6 +393,7 @@ struct BlockBasedTableBuilder::Rep {
         compression_dict(),
         compression_ctx(_compression_type),
         verify_dict(),
+        pilot_builder(icomparator, nullptr, 0),
         state((_compression_opts.max_dict_bytes > 0) ? State::kBuffered
                                                      : State::kUnbuffered),
         use_delta_encoding_for_index_values(table_opt.format_version >= 4 &&

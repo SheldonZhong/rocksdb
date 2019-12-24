@@ -2,7 +2,7 @@
 
 #include "table/table_reader.h"
 #include "table/block_based/seek_block.h"
-#include "table/block_based/pilot_block.h"
+#include "table/block_based/pilot_value.h"
 
 namespace rocksdb
 {
@@ -124,6 +124,7 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
 
         friend class SeekLevelIterator;
         friend class SeekTableBuilder;
+        friend class PilotBlockBuilder;
         
     private:
         const SeekTable* table_;

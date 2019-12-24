@@ -11,21 +11,6 @@ namespace rocksdb
 
 const uint64_t kSeekTableMagicNumber = 0xdbbad01beefe0f44ull;
 
-struct IterComparator {
-    IterComparator(const Comparator& _comparator)
-        : comparator(_comparator) {}
-
-    // implement greater than
-    inline bool operator()(SeekTableIterator* a,
-                            SeekTableIterator* b) const {
-        return comparator.Compare(a->key(), b->key()) > 0;
-    }
-
-    const Comparator& comparator;
-};
-
-typedef BinaryHeap<SeekTableIterator*, IterComparator> minHeap;
-
 struct SeekTableBuilder::Rep {
 
     const Comparator& comparator;
@@ -36,15 +21,7 @@ struct SeekTableBuilder::Rep {
 
     std::unique_ptr<SeekIndexBuilder> index_builder;
 
-    std::vector<SeekTable*> children;
-    std::vector<SeekTableIterator*> children_iter;
-
-    std::unique_ptr<minHeap> iter_heap;
-    std::map<SeekTableIterator*, uint8_t> iter_map;
-
     std::unique_ptr<PilotBlockBuilder> pilot_builder;
-    std::vector<uint16_t> pending_data_block_;
-    std::vector<uint16_t> pending_index_block_;
 
     std::string last_key;
 
@@ -72,7 +49,6 @@ struct SeekTableBuilder::Rep {
         : comparator(_comparator),
         file(f),
         data_block(),
-        iter_heap(new minHeap(comparator)),
         state(State::kOpened),
         creation_time(_creation_time),
         target_file_size(_target_file_size),
@@ -82,17 +58,9 @@ struct SeekTableBuilder::Rep {
     index_builder.reset(new SeekIndexBuilder(&comparator));
 
     if (lower_levels != nullptr && n > 0) {
-        children.resize(n);
-        children_iter.resize(n);
-        for (int i = 0; i < n; i++) {
-            children[i] = lower_levels[i];
-            children_iter[i] = children[i]->NewSeekTableIter();
-            children_iter[i]->SeekToFirst();
-            iter_map[children_iter[i]] = static_cast<uint8_t>(i);
-            iter_heap->push(children_iter[i]);
-        }
-
-        pilot_builder.reset(new PilotBlockBuilder());
+        pilot_builder.reset(new PilotBlockBuilder(
+            comparator, lower_levels, n
+        ));
     }
 }
 
@@ -101,60 +69,6 @@ struct SeekTableBuilder::Rep {
 
     ~Rep() {}
 };
-
-void SeekTableBuilder::BuildPilot(const Slice* key) {
-    Rep* r = rep_;
-    if (r->pilot_builder.get() == nullptr) {
-        return;
-    }
-
-    assert(!r->children_iter.empty());
-
-    std::vector<uint8_t> levels;
-    while (!r->iter_heap->empty()) {
-        SeekTableIterator* ptr = r->iter_heap->top();
-        if (key == nullptr || r->comparator.Compare(ptr->key(), *key) < 0) {
-            ptr->Next();
-            if (ptr->Valid()) {
-                r->iter_heap->replace_top(ptr);
-            } else {
-                r->iter_heap->pop();
-            }
-            uint8_t idx = r->iter_map[ptr];
-            levels.push_back(idx);
-        } else {
-            break;
-        }
-    }
-
-    if (r->pilot_builder.get()->empty()) {
-        r->pilot_builder->AddFirstEntry(levels);
-    } else {
-        // should use the previous index and data offset
-        // since the iterators are now behind key instead of r->last_key
-        r->pilot_builder->AddPilotEntry(r->last_key, r->pending_index_block_,
-                                        r->pending_data_block_, levels);
-    }
-
-    r->pending_index_block_.clear();
-    r->pending_data_block_.clear();
-    if (!r->iter_heap->empty()) {
-        for (size_t i = 0; i < r->children_iter.size(); i++) {
-            uint16_t index = 0x8000;
-            uint16_t data = 0x8000;
-            if (r->children_iter[i]->Valid()) {
-                uint32_t idx = r->children_iter[i]->GetIndexBlock();
-                assert((idx & 0xFFFF0000) == 0);
-                index = static_cast<uint16_t>(idx);
-                idx = r->children_iter[i]->GetDataBlock();
-                assert((idx & 0xFFFF0000) == 0);
-                data = static_cast<uint16_t>(idx);
-            }
-            r->pending_index_block_.push_back(index);
-            r->pending_data_block_.push_back(data);
-        }
-    }
-}
 
 Status SeekTableBuilder::Finish() {
     Rep* r = rep_;
@@ -171,7 +85,7 @@ Status SeekTableBuilder::Finish() {
 
     WriteIndexBlock(&meta_index_builder, &index_block_handle);
     if (rep_->pilot_builder.get() != nullptr) {
-        BuildPilot();
+        rep_->pilot_builder->BuildPilot();
         WritePilotBlock(&meta_index_builder);
     }
     // remove it if iterator could check out-of-bound
@@ -318,7 +232,9 @@ void SeekTableBuilder::Add(const Slice& key, const Slice& value) {
         }
     }
 
-    BuildPilot(&key);
+    if (rep_->pilot_builder.get() != nullptr) {
+        r->pilot_builder->BuildPilot(&key);
+    }
     r->last_key.assign(key.data(), key.size());
     r->data_block.Add(key, value);
 

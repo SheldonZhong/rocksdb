@@ -3,57 +3,75 @@
 
 namespace rocksdb {
 
-void PilotValue::EncodeTo(std::string* dst) const {
-    PutVarint32(dst, static_cast<uint32_t>(index_block_.size()));
-    for (size_t i = 0; i < index_block_.size(); i++) {
-        PutFixed16(dst, index_block_[i]);
-        PutFixed16(dst, data_block_[i]);
+PilotBlockBuilder::PilotBlockBuilder(const Comparator& comparator,
+                                    SeekTable** levels, int n)
+            : comparator_(comparator),
+            iter_heap_(new minHeap(comparator_)),
+            pilot_block_(new SeekBlockBuilder) {
+    children_.resize(n);
+    children_iter_.resize(n);
+    if (levels != nullptr && n > 0) {
+        for (int i = 0; i < n; i++) {
+            children_[i] = levels[i];
+            children_iter_[i] = children_[i]->NewSeekTableIter();
+            children_iter_[i]->SeekToFirst();
+            iter_map_[children_iter_[i]] = static_cast<uint8_t>(i);
+            iter_heap_->push(children_iter_[i]);
+        }
     }
-
-    PutVarint32(dst, levels_size_);
-    dst->append(reinterpret_cast<char*>(levels_), levels_size_);
 }
 
-Status PilotValue::DecodeFrom(Slice* input) {
-    uint32_t num_levels;
-    if (!GetVarint32(input, &num_levels)) {
-        return Status::Corruption("bad encode pilot value entry start");
-    }
-    index_block_.resize(num_levels);
-    data_block_.resize(num_levels);
+void PilotBlockBuilder::BuildPilot(const Slice* key) {
+    assert(!children_iter_.empty());
 
-    for (uint32_t i = 0; i < num_levels; i++) {
-        uint16_t buf;
-        if (!GetFixed16(input, &buf)) {
-            return Status::Corruption("bad encode pilot value index_block");
+    std::vector<uint8_t> levels;
+    while (!iter_heap_->empty()) {
+        SeekTableIterator* ptr = iter_heap_->top();
+        if (key == nullptr || comparator_.Compare(ptr->key(), *key) < 0) {
+            ptr->Next();
+            if (ptr->Valid()) {
+                iter_heap_->replace_top(ptr);
+            } else {
+                iter_heap_->pop();
+            }
+            uint8_t idx = iter_map_[ptr];
+            levels.push_back(idx);
+        } else {
+            break;
         }
-        index_block_[i] = buf;
-        if (!GetFixed16(input, &buf)) {
-            return Status::Corruption("bad encode pilot value data_block");
+    }
+
+    if (empty()) {
+        AddFirstEntry(levels);
+    } else {
+        // should use the previous index and data offset
+        // since the iterators are now behind key instead of r->last_key
+        AddPilotEntry(last_key_, pending_index_block_,
+                                        pending_data_block_, levels);
+    }
+    if (key != nullptr) {
+        last_key_.assign(key->data(), key->size());
+    }
+
+    pending_index_block_.clear();
+    pending_data_block_.clear();
+    if (!iter_heap_->empty()) {
+        for (size_t i = 0; i < children_iter_.size(); i++) {
+            uint16_t index = 0x8000;
+            uint16_t data = 0x8000;
+            if (children_iter_[i]->Valid()) {
+                uint32_t idx = children_iter_[i]->GetIndexBlock();
+                assert((idx & 0xFFFF0000) == 0);
+                index = static_cast<uint16_t>(idx);
+                idx = children_iter_[i]->GetDataBlock();
+                assert((idx & 0xFFFF0000) == 0);
+                data = static_cast<uint16_t>(idx);
+            }
+            pending_index_block_.push_back(index);
+            pending_data_block_.push_back(data);
         }
-        data_block_[i] = buf;
     }
-
-    uint32_t n;
-    if (!GetVarint32(input, &n)) {
-        return Status::Corruption("bad encode pilot value level start");
-    }
-    levels_size_ = n;
-    if (levels_ != nullptr) {
-        delete[] levels_;
-    }
-    levels_ = new uint8_t[n];
-    if (input->size() < sizeof(uint8_t) * n) {
-        return Status::Corruption("bad encode pilot value levels");
-    }
-    memcpy(levels_, input->data(), sizeof(uint8_t) * n);
-    input->remove_prefix(sizeof(uint8_t) * n);
-
-    return Status::OK();
 }
-
-PilotBlockBuilder::PilotBlockBuilder()
-    : pilot_block_(new SeekBlockBuilder) {}
 
 void PilotBlockBuilder::AddPilotEntry(
                                 const Slice& key,
