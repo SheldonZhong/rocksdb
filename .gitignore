@@ -29,6 +29,7 @@ make_config.mk
 CMakeCache.txt
 CMakeFiles/
 build/
+release/
 
 ldb
 manifest_dump
