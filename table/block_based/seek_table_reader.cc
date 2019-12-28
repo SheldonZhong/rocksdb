@@ -271,20 +271,39 @@ void SeekTableIterator::HintedSeek(const Slice& target,
                 comp_.Compare(target,
                                 index_iter_->key()) < 0) {
                 seek_index = false;
+                data_left = 0;
+                data_right = block_iter_.num_restarts_;
             }
     }
 
     if (seek_index) {
-        index_iter_->HintedSeek(target, index_left, index_right);
+        uint32_t index = 0;
+        index_iter_->HintedSeek(target, index_left, index_right, &index);
 
         if (!index_iter_->Valid()) {
             block_iter_points_to_real_block_ = false;
             return;
         }
         InitDataBlock();
+
+        if (index == index_left) {
+            data_right = block_iter_.num_restarts_;
+        } else if (index == index_right - 1) {
+            data_left = 0;
+        } else {
+            data_left = 0;
+            data_right = block_iter_.num_restarts_;
+        }
     }
 
     block_iter_.HintedSeek(target, data_left, data_right);
+
+    while (Valid()) {
+        if (comp_.Compare(key(), target) >= 0) {
+            return;
+        }
+        Next();
+    }
 }
 
 void SeekTableIterator::Prev() {
@@ -511,6 +530,11 @@ void SeekTableIterator::GetPilot(PilotValue* pilot) {
 
     Slice v = pilot_iter_->value();
     pilot->DecodeFrom(&v);
+}
+
+uint32_t SeekTableIterator::Count() const {
+    return index_count_ -
+            block_iter_.num_restarts_ + block_iter_.GetRestartIndex();
 }
 
 uint32_t SeekTableIterator::GetIndexBlock() const {

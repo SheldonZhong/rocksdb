@@ -156,7 +156,7 @@ void SeekDataBlockIter::Seek(const Slice& target) {
     HintedSeek(target, 0, num_restarts_);
 }
 
-void SeekDataBlockIter::HintedSeek(const Slice& target, uint32_t left, uint32_t right) {
+void SeekDataBlockIter::HintedSeek(const Slice& target, uint32_t left, uint32_t right, uint32_t* result) {
     if (data_ == nullptr) {
         return;
     }
@@ -164,6 +164,9 @@ void SeekDataBlockIter::HintedSeek(const Slice& target, uint32_t left, uint32_t 
     bool ok = BinarySeek(target, left, right, &index, comparator_);
     if (!ok) {
         return;
+    }
+    if (result != nullptr) {
+        *result = index;
     }
     // out of bound
     if (index >= num_restarts_) {

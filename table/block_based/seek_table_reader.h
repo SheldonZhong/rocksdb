@@ -121,10 +121,13 @@ class SeekTableIterator : public InternalIteratorBase<Slice> {
             }
         }
 
+        uint32_t Count() const;
 
         friend class SeekLevelIterator;
         friend class SeekTableBuilder;
         friend class PilotBlockBuilder;
+        friend class PilotBlockMarsBuilder;
+        friend class PilotBlockMarsIterator;
         
     private:
         const SeekTable* table_;

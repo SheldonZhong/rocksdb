@@ -84,7 +84,7 @@ TEST_F(TableTest, SimpleTest) {
     SeekTable::Open(*cmp, std::move(file_reader_),
       static_cast<test::StringSink*>(file_writer_->writable_file())->contents().size(),
       &reader, 0);
-    InternalIterator* iter = reader->NewIterator();
+    SeekTableIterator* iter = reader->NewSeekTableIter();
 
     int count = 0;
     for (iter->SeekToFirst(); iter->Valid(); count++, iter->Next()) {
@@ -93,6 +93,7 @@ TEST_F(TableTest, SimpleTest) {
 
       ASSERT_EQ(k.ToString().compare(keys[count]), 0);
       ASSERT_EQ(v.ToString().compare(values[count]), 0);
+      ASSERT_EQ(count, iter->Count());
     }
     ASSERT_EQ(num_records, count);
 
@@ -171,7 +172,7 @@ TEST_F(TableTest, NextKTest) {
       int index = rnd.Uniform(num_records);
       Slice k(keys[index]);
       iter->Seek(k);
-      ASSERT_TRUE(iter->Valid());
+      ASSERT_TRUE(iter->Valid()) << " i " << i << " key " << k.ToString() << std::endl;
       Slice v = iter->value();
       ASSERT_EQ(v.ToString().compare(values[index]), 0);
 
@@ -181,9 +182,11 @@ TEST_F(TableTest, NextKTest) {
         ASSERT_FALSE(iter->Valid());
       } else {
         bool valid = iter->Valid();
-        ASSERT_TRUE(iter->Valid());
+        ASSERT_TRUE(iter->Valid()) << " i " << i << " next "
+                  << next << std::endl;;
         v = iter->value();
-        ASSERT_EQ(v.ToString().compare(values[index + next]), 0);
+        ASSERT_EQ(v.ToString().compare(values[index + next]), 0)
+                  << " i " << i << std::endl;
       }
     }
 }

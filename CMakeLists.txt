@@ -613,6 +613,7 @@ set(SOURCES
         table/block_based/seek_table_reader.cc
         table/block_based/seek_level_iterator.cc
         table/block_based/pilot_value.cc
+        table/block_based/pilot_block_mars.cc
         table/seek_meta_blocks.cc
         table/block_fetcher.cc
         table/bloom_block.cc
@@ -985,6 +986,7 @@ if(WITH_TESTS)
         table/block_based/seek_block_test.cc
         table/block_based/seek_level_test.cc
         table/block_based/level_iterator_bench.cc
+        table/block_based/seek_mars_test.cc
         table/seek_table_test.cc
         table/cleanable_test.cc
         table/cuckoo/cuckoo_table_builder_test.cc

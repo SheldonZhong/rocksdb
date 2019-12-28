@@ -15,7 +15,8 @@ struct PilotValue {
         : index_block_(index_block),
         data_block_(data_block),
         levels_(nullptr),
-        levels_size_(0) {
+        levels_size_(0),
+        pined(true) {
             assert(index_block_.size() == data_block_.size());
             levels_size_ = levels.size();
             levels_ = new uint8_t[levels_size_];
@@ -24,8 +25,17 @@ struct PilotValue {
             }
     }
 
+    PilotValue(std::vector<uint16_t>& index_block,
+                std::vector<uint16_t>& data_block,
+                uint8_t* levels, uint32_t n)
+        : index_block_(index_block),
+        data_block_(data_block),
+        levels_(levels),
+        levels_size_(n),
+        pined(false) {}
+
     ~PilotValue() {
-        if (levels_ != nullptr) {
+        if (levels_ != nullptr && pined) {
             delete[] levels_;
         }
     }
@@ -34,7 +44,8 @@ struct PilotValue {
         : index_block_(),
         data_block_(),
         levels_(nullptr),
-        levels_size_(0) {}
+        levels_size_(0),
+        pined(true) {}
 
     void EncodeTo(std::string* dst) const;
     Status DecodeFrom(Slice* input);
@@ -44,6 +55,7 @@ struct PilotValue {
     // std::vector<uint8_t> levels_;
     uint8_t* levels_;
     uint32_t levels_size_;
+    bool pined;
 };
 } // namespace namerrocksdb
 
