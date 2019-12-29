@@ -63,6 +63,10 @@ class PilotBlockMarsIterator : public InternalIterator {
         SeekTableIterator* current_iter_;
         PilotValue entry_;
         const Comparator* comp_;
+        std::vector<uint16_t> index_left_;
+        std::vector<uint16_t> data_left_;
+        std::vector<uint16_t> index_right_;
+        std::vector<uint16_t> data_right_;
 };
 
 } // namespace namerocksdb

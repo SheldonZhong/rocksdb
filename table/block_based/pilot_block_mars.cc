@@ -135,7 +135,11 @@ PilotBlockMarsIterator::PilotBlockMarsIterator(
     num_levels_(0),
     current_(0),
     current_iter_(nullptr),
-    comp_(comp) {
+    comp_(comp),
+    index_left_(num_levels_),
+    data_left_(num_levels_),
+    index_right_(num_levels_),
+    data_right_(num_levels_) {
 
     pilot_iter_ = pilot_block_->NewSeekTableIter();
     num_levels_ = counts_->size();
@@ -157,24 +161,22 @@ void PilotBlockMarsIterator::SeekToFirst() {
 void PilotBlockMarsIterator::Seek(const Slice& target) {
     pilot_iter_->SeekForPrev(target);
     ParsePilot();
-    std::vector<uint16_t> index_left = entry_.index_block_;
-    std::vector<uint16_t> data_left = entry_.data_block_;
-    std::vector<uint16_t> index_right;
-    std::vector<uint16_t> data_right;
+    index_left_ = entry_.index_block_;
+    data_left_ = entry_.data_block_;
+    // std::vector<uint16_t> index_right;
+    // std::vector<uint16_t> data_right;
     pilot_iter_->Next();
     if (pilot_iter_->Valid()) {
         ParsePilot();
-        index_right = entry_.index_block_;
-        data_right = entry_.data_block_;
+        index_right_ = entry_.index_block_;
+        data_right_ = entry_.data_block_;
         pilot_iter_->Prev();
     } else {
         // the logic for the last key should be simplified
-        index_right.resize(num_levels_);
-        data_right.resize(num_levels_);
         for (size_t i = 0; i < num_levels_; i++) {
             iters_[i]->SeekToLast();
-            index_right[i] = iters_[i]->index_iter_->GetRestartIndex();
-            data_right[i] = iters_[i]->block_iter_.GetRestartIndex();
+            index_right_[i] = iters_[i]->index_iter_->GetRestartIndex();
+            data_right_[i] = iters_[i]->block_iter_.GetRestartIndex();
         }
         pilot_iter_->SeekForPrev(target);
     }
@@ -184,8 +186,8 @@ void PilotBlockMarsIterator::Seek(const Slice& target) {
     Slice key;
     bool first = true;
     for (size_t i = 0; i < num_levels_; i++) {
-        iters_[i]->HintedSeek(target, index_left[i], index_right[i],
-                                data_left[i], data_right[i]);
+        iters_[i]->HintedSeek(target, index_left_[i], index_right_[i],
+                                data_left_[i], data_right_[i]);
         
         // if (pos < current_) {
         if (iters_[i]->Valid()) {
