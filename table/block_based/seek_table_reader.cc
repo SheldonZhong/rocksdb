@@ -286,7 +286,9 @@ void SeekTableIterator::HintedSeek(const Slice& target,
         }
         InitDataBlock();
 
-        if (index == index_left) {
+        if (index_left == index_right) {
+
+        } else if (index == index_left) {
             data_right = block_iter_.num_restarts_;
         } else if (index == index_right) {
             data_left = 0;

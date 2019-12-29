@@ -161,26 +161,29 @@ void PilotBlockMarsIterator::SeekToFirst() {
 void PilotBlockMarsIterator::Seek(const Slice& target) {
     pilot_iter_->SeekForPrev(target);
     ParsePilot();
+
     index_left_ = entry_.index_block_;
     data_left_ = entry_.data_block_;
-    // std::vector<uint16_t> index_right;
-    // std::vector<uint16_t> data_right;
-    pilot_iter_->Next();
-    if (pilot_iter_->Valid()) {
+    if (pilot_iter_->index_iter_->GetRestartIndex() + 2 <= 
+            pilot_iter_->index_iter_->num_restarts_ &&
+            pilot_iter_->block_iter_.GetRestartIndex() + 2 <=
+            pilot_iter_->block_iter_.num_restarts_) {
+    // if (pilot_iter_->Valid()) {
+        pilot_iter_->Next();
         ParsePilot();
         index_right_ = entry_.index_block_;
         data_right_ = entry_.data_block_;
         pilot_iter_->Prev();
+        ParsePilot();
     } else {
         // the logic for the last key should be simplified
         for (size_t i = 0; i < num_levels_; i++) {
             iters_[i]->SeekToLast();
-            index_right_[i] = iters_[i]->index_iter_->GetRestartIndex();
-            data_right_[i] = iters_[i]->block_iter_.GetRestartIndex();
+            index_right_[i] = iters_[i]->index_iter_->num_restarts_ - 1;
+            data_right_[i] = iters_[i]->block_iter_.num_restarts_ - 1;
         }
-        pilot_iter_->SeekForPrev(target);
+        // pilot_iter_->SeekForPrev(target);
     }
-    ParsePilot();
 
     current_ = std::numeric_limits<decltype(current_)>::max();
     Slice key;

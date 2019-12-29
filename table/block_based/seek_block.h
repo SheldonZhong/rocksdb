@@ -151,6 +151,7 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
     protected:
         uint32_t num_restarts_;
         friend class SeekTableIterator;
+        friend class PilotBlockMarsIterator;
     private:
         const Comparator* comparator_;
         const char* data_; // block contents
