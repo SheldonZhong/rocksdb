@@ -86,6 +86,9 @@ void PilotBlockMarsBuilder::Build() {
             pilot_block_->Add(last_key, encoded);
             jcnt = 0;
 
+            if (iter_heap_->empty()) {
+                return;
+            }
             ptr = iter_heap_->top();
             last_key.assign(ptr->key().data(), ptr->key().size());
             for (int i = 0; i < num_levels_; i++) {
@@ -132,7 +135,7 @@ PilotBlockMarsIterator::PilotBlockMarsIterator(
     pilot_iter_(nullptr),
     counts_(counts),
     iters_(iters),
-    num_levels_(0),
+    num_levels_(counts_->size()),
     current_(0),
     current_iter_(nullptr),
     comp_(comp),
@@ -142,7 +145,6 @@ PilotBlockMarsIterator::PilotBlockMarsIterator(
     data_right_(num_levels_) {
 
     pilot_iter_ = pilot_block_->NewSeekTableIter();
-    num_levels_ = counts_->size();
 
 }
 
