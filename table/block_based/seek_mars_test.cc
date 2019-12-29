@@ -101,12 +101,27 @@ TEST_F(MarsLevelTest, SimpleTest) {
     }
 
     std::vector<uint16_t*> counts;
-    PilotBlockMarsBuilder pilot_builder(*cmp, readers, layers, &counts);
+    std::unique_ptr<WritableFileWriter> pilot_file(test::GetWritableFileWriter(
+                            new test::StringSink(), ""));
+    PilotBlockMarsBuilder pilot_builder(*cmp, readers, layers, &counts, pilot_file.get());
     pilot_builder.Build();
-    Slice pilot_block_ = pilot_builder.Finish();
+    Status s = pilot_builder.Finish();
+    ASSERT_TRUE(s.ok());
+    pilot_file->Flush();
+    EXPECT_EQ(static_cast<test::StringSink*>(pilot_file->writable_file())->contents().size(), 
+        pilot_builder.FileSize());
 
+    std::unique_ptr<RandomAccessFileReader> pilot_reader(
+        test::GetRandomAccessFileReader(new test::StringSource(
+            static_cast<test::StringSink*>(pilot_file->writable_file())->contents(),
+            1, false)));
+    
+    std::unique_ptr<SeekTable> reader;
+    SeekTable::Open(*cmp, std::move(pilot_reader),
+        static_cast<test::StringSink*>(pilot_file->writable_file())->contents().size(),
+        &reader, 0);
     std::unique_ptr<PilotBlockMarsIterator> level_iter;
-    level_iter.reset(new PilotBlockMarsIterator(pilot_block_, &counts, iter_list, cmp));
+    level_iter.reset(new PilotBlockMarsIterator(reader.get(), &counts, iter_list, cmp));
 
     int count = 0;
     for (level_iter->SeekToFirst(); level_iter->Valid(); count++, level_iter->Next()) {
@@ -201,12 +216,27 @@ TEST_F(MarsLevelTest, RandomInsertTest) {
     }
 
     std::vector<uint16_t*> counts;
-    PilotBlockMarsBuilder pilot_builder(*cmp, readers, layers, &counts);
+    std::unique_ptr<WritableFileWriter> pilot_file(test::GetWritableFileWriter(
+                            new test::StringSink(), ""));
+    PilotBlockMarsBuilder pilot_builder(*cmp, readers, layers, &counts, pilot_file.get());
     pilot_builder.Build();
-    Slice pilot_block_ = pilot_builder.Finish();
+    Status s = pilot_builder.Finish();
+    ASSERT_TRUE(s.ok());
+    pilot_file->Flush();
+    EXPECT_EQ(static_cast<test::StringSink*>(pilot_file->writable_file())->contents().size(), 
+        pilot_builder.FileSize());
 
+    std::unique_ptr<RandomAccessFileReader> pilot_reader(
+        test::GetRandomAccessFileReader(new test::StringSource(
+            static_cast<test::StringSink*>(pilot_file->writable_file())->contents(),
+            1, false)));
+    
+    std::unique_ptr<SeekTable> reader;
+    SeekTable::Open(*cmp, std::move(pilot_reader),
+        static_cast<test::StringSink*>(pilot_file->writable_file())->contents().size(),
+        &reader, 0);
     std::unique_ptr<PilotBlockMarsIterator> level_iter;
-    level_iter.reset(new PilotBlockMarsIterator(pilot_block_, &counts, iter_list, cmp));
+    level_iter.reset(new PilotBlockMarsIterator(reader.get(), &counts, iter_list, cmp));
 
     int count = 0;
     for (level_iter->SeekToFirst(); level_iter->Valid(); count++, level_iter->Next()) {

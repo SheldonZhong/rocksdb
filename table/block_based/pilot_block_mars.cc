@@ -7,11 +7,14 @@ PilotBlockMarsBuilder::PilotBlockMarsBuilder(
             const Comparator& comp,
             SeekTable** levels,
             int n,
-            std::vector<uint16_t*>* counts)
+            std::vector<uint16_t*>* counts,
+            WritableFileWriter* file)
             : comparator_(comp),
             levels_(nullptr),
             num_levels_(0),
-            pilot_block_(new SeekBlockBuilder),
+            pilot_block_(new SeekTableBuilder(
+                comparator_, file
+            )),
             counts_(counts) {
     if (levels != nullptr && n > 0) {
         levels_ = levels;
@@ -114,18 +117,18 @@ void PilotBlockMarsBuilder::Build() {
     }
 }
 
-Slice PilotBlockMarsBuilder::Finish() {
+Status PilotBlockMarsBuilder::Finish() {
     return pilot_block_->Finish();
 }
 
 // reader part
 
 PilotBlockMarsIterator::PilotBlockMarsIterator(
-        BlockContents contents,
+        SeekTable* contents,
         std::vector<uint16_t*>* counts,
         SeekTableIterator** iters,
         const Comparator* comp)
-    : pilot_block_(std::move(contents)),
+    : pilot_block_(contents),
     pilot_iter_(nullptr),
     counts_(counts),
     iters_(iters),
@@ -134,7 +137,7 @@ PilotBlockMarsIterator::PilotBlockMarsIterator(
     current_iter_(nullptr),
     comp_(comp) {
 
-    pilot_iter_ = pilot_block_.NewDataIterator(comp_);
+    pilot_iter_ = pilot_block_->NewSeekTableIter();
     num_levels_ = counts_->size();
 
 }

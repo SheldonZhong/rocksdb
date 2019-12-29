@@ -1,6 +1,8 @@
 #pragma once
 
 #include "table/block_based/pilot_block.h"
+#include "table/block_based/seek_table_builder.h"
+#include "table/block_based/seek_table_reader.h"
 
 namespace rocksdb
 {
@@ -8,24 +10,27 @@ class PilotBlockMarsBuilder {
     public:
         PilotBlockMarsBuilder(const Comparator& comp,
                         SeekTable** levels, int n,
-                        std::vector<uint16_t*>* counts);
+                        std::vector<uint16_t*>* counts,
+                        WritableFileWriter* file);
         
         void Build();
 
-        Slice Finish();
+        Status Finish();
+
+        uint64_t FileSize() const { return pilot_block_->FileSize(); }
     
     private:
         const Comparator& comparator_;
         SeekTable** levels_;
         int num_levels_;
-        std::unique_ptr<SeekBlockBuilder> pilot_block_;
+        std::unique_ptr<SeekTableBuilder> pilot_block_;
         std::vector<uint16_t*>* counts_;
 };
 
 class PilotBlockMarsIterator : public InternalIterator {
     public:
         PilotBlockMarsIterator(
-            BlockContents contents,
+            SeekTable* contents,
             std::vector<uint16_t*>* counts,
             SeekTableIterator** iters,
             const Comparator* comp);
@@ -49,8 +54,8 @@ class PilotBlockMarsIterator : public InternalIterator {
         bool Valid() const;
     
     private:
-        SeekBlock pilot_block_;
-        SeekDataBlockIter* pilot_iter_;
+        SeekTable* pilot_block_;
+        SeekTableIterator* pilot_iter_;
         std::vector<uint16_t*>* counts_;
         SeekTableIterator** iters_;
         size_t num_levels_;

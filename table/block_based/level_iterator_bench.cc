@@ -386,18 +386,33 @@ struct MarsBench : public Benchmark {
     }
 
     void Finish() override {
-        SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[0].get(),
-                                                        readers + 1, layers - 1);
-        PilotBlockMarsBuilder pilot_builder(*cmp, readers, layers, &counts);
+        pilot_file.reset(test::GetWritableFileWriter(
+                                new test::StringSink(), ""));
+        PilotBlockMarsBuilder pilot_builder(*cmp, readers, layers, &counts, pilot_file.get());
         pilot_builder.Build();
-        pilot_block_ = pilot_builder.Finish();
+        Status s = pilot_builder.Finish();
+        assert(s.ok());
+        pilot_file->Flush();
+
+        pilot_reader.reset(
+            test::GetRandomAccessFileReader(new test::StringSource(
+                static_cast<test::StringSink*>(pilot_file->writable_file())->contents(),
+                1, false)));
+        
+        SeekTable::Open(*cmp, std::move(pilot_reader),
+            static_cast<test::StringSink*>(pilot_file->writable_file())->contents().size(),
+            &pilot_table, 0);
+        std::unique_ptr<PilotBlockMarsIterator> level_iter;
+        level_iter.reset(new PilotBlockMarsIterator(pilot_table.get(), &counts, iters, cmp));
     }
 
     InternalIterator* GetIter() override {
-        return new PilotBlockMarsIterator(pilot_block_, &counts, iters, cmp);
+        return new PilotBlockMarsIterator(pilot_table.get(), &counts, iters, cmp);
     }
 
-    Slice pilot_block_;
+    std::unique_ptr<WritableFileWriter> pilot_file;
+    std::unique_ptr<RandomAccessFileReader> pilot_reader;
+    std::unique_ptr<SeekTable> pilot_table;
     std::vector<uint16_t*> counts;
 };
 
