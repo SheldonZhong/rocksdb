@@ -170,8 +170,8 @@ void PilotBlockMarsIterator::Seek(const Slice& target) {
         data_right.resize(num_levels_);
         for (size_t i = 0; i < num_levels_; i++) {
             iters_[i]->SeekToLast();
-            index_right[i] = iters_[i]->index_iter_->GetRestartIndex() - 1;
-            data_right[i] = iters_[i]->block_iter_.GetRestartIndex() - 1;
+            index_right[i] = iters_[i]->index_iter_->GetRestartIndex();
+            data_right[i] = iters_[i]->block_iter_.GetRestartIndex();
         }
         pilot_iter_->SeekForPrev(target);
     }
@@ -181,8 +181,8 @@ void PilotBlockMarsIterator::Seek(const Slice& target) {
     Slice key;
     bool first = true;
     for (size_t i = 0; i < num_levels_; i++) {
-        iters_[i]->HintedSeek(target, index_left[i], index_right[i] + 1,
-                                data_left[i], data_right[i] + 1);
+        iters_[i]->HintedSeek(target, index_left[i], index_right[i],
+                                data_left[i], data_right[i]);
         
         // if (pos < current_) {
         if (iters_[i]->Valid()) {

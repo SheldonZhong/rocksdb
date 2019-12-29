@@ -1,5 +1,6 @@
 #include "table/block_based/seek_level_iterator.h"
 #include "table/block_based/seek_table_builder.h"
+#include "table/block_based/pilot_block_mars.h"
 #include "table/merging_iterator.h"
 #include "include/rocksdb/env.h"
 #include "test_util/testutil.h"
@@ -354,13 +355,58 @@ struct SeekBench : public Benchmark {
         return new SeekLevelIterator(iters, layers, *cmp);
     }
 };
+struct MarsBench : public Benchmark {
+    MarsBench()
+    : Benchmark() {}
+
+    MarsBench(int _num, int _layers, int _rnd)
+    : Benchmark(_num, _layers, _rnd) {}
+
+    void Prepare() override {
+        std::cout << "Pilot block Mars benchmark" << std::endl;
+        base_config["bench"] = "seek-mars";
+        for (int i = 0; i < layers; i++) {
+            SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[i].get());
+            for (int idx = 0; idx < num_records; idx++) {
+                if (sequences[idx] == i) {
+                    builder->Add(keys[idx], values[idx]);
+                }
+            }
+            Status s = builder->Finish();
+            assert(s.ok());
+            Flush(i);
+            std::unique_ptr<RandomAccessFileReader>& file_reader_ = file_reader[i];
+            std::unique_ptr<SeekTable> reader;
+            SeekTable::Open(*cmp, std::move(file_reader_),
+                            size(i), &reader, 0);
+            readers[i] = reader.release();
+            iters[i] = readers[i]->NewSeekTableIter();
+            delete builder;
+        }
+    }
+
+    void Finish() override {
+        SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[0].get(),
+                                                        readers + 1, layers - 1);
+        PilotBlockMarsBuilder pilot_builder(*cmp, readers, layers, &counts);
+        pilot_builder.Build();
+        pilot_block_ = pilot_builder.Finish();
+    }
+
+    InternalIterator* GetIter() override {
+        return new PilotBlockMarsIterator(pilot_block_, &counts, iters, cmp);
+    }
+
+    Slice pilot_block_;
+    std::vector<uint16_t*> counts;
+};
 
 }; // namespace namerocksdb
 
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cout << argv[0] << " [m/p] [num_records] [layers] [rnd] [path]" << std::endl;
+        std::cout << argv[0] << " [m/p/r] [num_records] [layers] [rnd] [path]" << std::endl;
         std::cout << "m for merging iterator" << std::endl;
         std::cout << "p for pilot guided iterator" << std::endl;
         exit(1);
@@ -393,8 +439,11 @@ int main(int argc, char** argv) {
     case 'p':
         bench = new rocksdb::SeekBench(num_records, layers, rnd);
         break;
+    case 'r':
+        bench = new rocksdb::MarsBench(num_records, layers, rnd);
+        break;
     default:
-        std::cout << argv[0] << " [m/p]" << std::endl;
+        std::cout << argv[0] << " [m/p/r]" << std::endl;
         exit(1);
         break;
     }
