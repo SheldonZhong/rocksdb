@@ -23,7 +23,8 @@ static inline const char* DecodeEntry(const char* p, const char* limit,
 class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
     public:
         SeekDataBlockIter()
-        : data_(nullptr) {};
+        : data_(nullptr),
+        pined_(true) {};
 
         virtual Slice value() const override {
             assert(Valid());
@@ -65,11 +66,13 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
             Cleanable::Reset();
         }
 
-        void Initialize(const Comparator* comparator, const char* data, uint32_t restarts, uint32_t num_restarts) {
+        void Initialize(const Comparator* comparator, const char* data,
+                        uint32_t restarts, uint32_t num_restarts, bool pin = true) {
             comparator_ = comparator;
-            if (data_ != nullptr) {
+            if (data_ != nullptr && pined_) {
                 delete[] data_;
             }
+            pined_ = pin;
             data_ = data;
             restarts_ = restarts;
             current_ = restarts_;
@@ -155,6 +158,7 @@ class SeekDataBlockIter final : public InternalIteratorBase<Slice> {
     private:
         const Comparator* comparator_;
         const char* data_; // block contents
+        bool pined_;
 
         uint32_t restart_index_; // current index
 
@@ -179,6 +183,7 @@ class SeekBlock {
         uint32_t NumEntries() const;
 
         SeekDataBlockIter* NewDataIterator(const Comparator* comparator,
+                                        bool pined = true,
                                         SeekDataBlockIter* iter = nullptr);
 
     private:

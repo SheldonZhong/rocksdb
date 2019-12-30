@@ -184,7 +184,7 @@ struct Benchmark {
         file_writer[idx]->Flush();
         file_reader[idx].reset(test::GetRandomAccessFileReader(new test::StringSource(
             static_cast<test::StringSink*>(file_writer[idx]->writable_file())->contents(),
-            1, false)));
+            1, true)));
     }
 
     size_t size(int idx) {

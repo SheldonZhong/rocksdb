@@ -24,7 +24,7 @@ uint32_t SeekBlock::NumEntries() const {
     return num_entries;
 }
 
-SeekDataBlockIter* SeekBlock::NewDataIterator(const Comparator* cmp, SeekDataBlockIter* iter) {
+SeekDataBlockIter* SeekBlock::NewDataIterator(const Comparator* cmp, bool pined, SeekDataBlockIter* iter) {
     SeekDataBlockIter* ret_iter;
     if (iter != nullptr){
         ret_iter = iter;
@@ -40,7 +40,7 @@ SeekDataBlockIter* SeekBlock::NewDataIterator(const Comparator* cmp, SeekDataBlo
         ret_iter->Invalidate(Status::OK());
         return ret_iter;
     } else {
-        ret_iter->Initialize(cmp, data_, restart_offset_, num_entries_);
+        ret_iter->Initialize(cmp, data_, restart_offset_, num_entries_, pined);
     }
 
     return ret_iter;

@@ -95,7 +95,9 @@ Status SeekTable::Open(const Comparator& comparator,
 
 // It has a lot of simplification, there might be a memory leak
 // ptr allocation is rockdb is still a mist.
-Status SeekTable::RetrieveBlock(const BlockHandle& handle, BlockContents* contents) const {
+Status SeekTable::RetrieveBlock(const BlockHandle& handle,
+                                BlockContents* contents,
+                                bool* pined) const {
     // slice is on stack, the content in data would be lost after function return
     Slice slice;
     // contents->is_raw_block = true;
@@ -128,8 +130,15 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle, BlockContents* conten
         delete[] buf;
         contents->data = Slice(data, n);
         // might be leak here
+        if (pined != nullptr) {
+            *pined = false;
+        }
+        // memmaped, no need to delete[]
     } else {
         contents->data = Slice(buf, n);
+        if (pined != nullptr) {
+            *pined = true;
+        }
     }
 
     return s;
@@ -138,11 +147,12 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle, BlockContents* conten
 Status SeekTable::ReadMetaBlock(std::unique_ptr<SeekBlock>* meta_block,
                                 std::unique_ptr<InternalIterator>* iter) {
     BlockContents contents;
-    Status s = RetrieveBlock(rep_->footer.metaindex_handle(), &contents);
+    bool pined;
+    Status s = RetrieveBlock(rep_->footer.metaindex_handle(), &contents, &pined);
 
     meta_block->reset(new SeekBlock(std::move(contents)));
     // global one bytewise comparator
-    iter->reset(meta_block->get()->NewDataIterator(&rep_->comparator));
+    iter->reset(meta_block->get()->NewDataIterator(&rep_->comparator, pined));
     return s;
 }
 
@@ -150,9 +160,10 @@ Status SeekTable::ReadPilotBlock(const BlockHandle& handle,
                                 std::unique_ptr<SeekBlock>* pilot_block,
                                 std::unique_ptr<SeekDataBlockIter>* iter) {
     BlockContents contents;
-    Status s = RetrieveBlock(handle, &contents);
+    bool pined;
+    Status s = RetrieveBlock(handle, &contents, &pined);
     pilot_block->reset(new SeekBlock(std::move(contents)));
-    iter->reset(pilot_block->get()->NewDataIterator(&rep_->comparator));
+    iter->reset(pilot_block->get()->NewDataIterator(&rep_->comparator, pined));
     return s;
 }
 
@@ -163,12 +174,13 @@ Status SeekTable::CreateIndexReader(std::unique_ptr<IndexReader>* index_reader) 
 InternalIterator* SeekTable::NewDataBlockIterator(const BlockHandle& handle,
                                                 SeekDataBlockIter* input_iter) const {
     BlockContents contents;
-    Status s = RetrieveBlock(handle, &contents);
+    bool pined;
+    Status s = RetrieveBlock(handle, &contents, &pined);
     if (!s.ok()) {
         return nullptr;
     }
     SeekBlock block(std::move(contents));
-    return block.NewDataIterator(&rep_->comparator, input_iter);
+    return block.NewDataIterator(&rep_->comparator, pined, input_iter);
 }
 
 InternalIterator* SeekTable::NewIterator() const {
