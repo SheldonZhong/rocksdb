@@ -181,8 +181,8 @@ void PilotBlockMarsIterator::Seek(const Slice& target) {
         // the logic for the last key should be simplified
         for (size_t i = 0; i < num_levels_; i++) {
             iters_[i]->SeekToLast();
-            index_right_[i] = iters_[i]->index_iter_->num_restarts_ - 1;
-            data_right_[i] = iters_[i]->block_iter_.num_restarts_ - 1;
+            index_right_[i] = iters_[i]->index_iter_->num_restarts_;
+            data_right_[i] = iters_[i]->block_iter_.num_restarts_;
         }
         // pilot_iter_->SeekForPrev(target);
     }
