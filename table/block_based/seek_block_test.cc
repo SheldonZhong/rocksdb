@@ -68,9 +68,7 @@ TEST_F(BlockTest, SimpleTest) {
   Slice rawblock = builder.Finish();
 
   // create block reader
-  BlockContents contents;
-  contents.data = rawblock;
-  SeekBlock reader(std::move(contents));
+  SeekBlock reader(rawblock);
 
   const Comparator* cmp = BytewiseComparator();
   // read contents of block sequentially

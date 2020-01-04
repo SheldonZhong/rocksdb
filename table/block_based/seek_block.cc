@@ -3,10 +3,10 @@
 namespace rocksdb
 {
 
-SeekBlock::SeekBlock(BlockContents&& contents)
-        : contents_(std::move(contents)),
-        data_(contents_.data.data()),
-        size_(contents_.data.size()),
+SeekBlock::SeekBlock(Slice contents)
+        : contents_(contents),
+        data_(contents_.data()),
+        size_(contents_.size()),
         restart_offset_(0),
         num_entries_(0) {
     if (size_ < sizeof(uint32_t)) {

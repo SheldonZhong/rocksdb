@@ -77,7 +77,7 @@ class SeekTable {
                             std::unique_ptr<SeekDataBlockIter>* iter);
 
         Status RetrieveBlock(const BlockHandle& handle,
-                            BlockContents* contents,
+                            Slice* contents,
                             bool* pined = nullptr) const;
 
         SeekDataBlockIter* NewIndexIterator() const;

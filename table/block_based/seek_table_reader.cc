@@ -96,7 +96,7 @@ Status SeekTable::Open(const Comparator& comparator,
 // It has a lot of simplification, there might be a memory leak
 // ptr allocation is rockdb is still a mist.
 Status SeekTable::RetrieveBlock(const BlockHandle& handle,
-                                BlockContents* contents,
+                                Slice* contents,
                                 bool* pined) const {
     // slice is on stack, the content in data would be lost after function return
     Slice slice;
@@ -119,23 +119,23 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle,
     const char* data = slice.data();
 
     // crc32
-    const uint32_t crc = crc32c::Unmask(DecodeFixed32(data + n + 1));
-    const uint32_t actual = crc32c::Value(data, n + 1);
-    if (actual != crc) {
-        delete[] buf;
-        return Status::Corruption("block checksum mismatch");
-    }
+    // const uint32_t crc = crc32c::Unmask(DecodeFixed32(data + n + 1));
+    // const uint32_t actual = crc32c::Value(data, n + 1);
+    // if (actual != crc) {
+    //     delete[] buf;
+    //     return Status::Corruption("block checksum mismatch");
+    // }
 
     if (data != buf) {
         delete[] buf;
-        contents->data = Slice(data, n);
+        *contents = Slice(data, n);
         // might be leak here
         if (pined != nullptr) {
             *pined = false;
         }
         // memmaped, no need to delete[]
     } else {
-        contents->data = Slice(buf, n);
+        *contents = Slice(buf, n);
         if (pined != nullptr) {
             *pined = true;
         }
@@ -146,7 +146,7 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle,
 
 Status SeekTable::ReadMetaBlock(std::unique_ptr<SeekBlock>* meta_block,
                                 std::unique_ptr<InternalIterator>* iter) {
-    BlockContents contents;
+    Slice contents;
     bool pined;
     Status s = RetrieveBlock(rep_->footer.metaindex_handle(), &contents, &pined);
 
@@ -159,7 +159,7 @@ Status SeekTable::ReadMetaBlock(std::unique_ptr<SeekBlock>* meta_block,
 Status SeekTable::ReadPilotBlock(const BlockHandle& handle,
                                 std::unique_ptr<SeekBlock>* pilot_block,
                                 std::unique_ptr<SeekDataBlockIter>* iter) {
-    BlockContents contents;
+    Slice contents;
     bool pined;
     Status s = RetrieveBlock(handle, &contents, &pined);
     pilot_block->reset(new SeekBlock(std::move(contents)));
@@ -173,7 +173,7 @@ Status SeekTable::CreateIndexReader(std::unique_ptr<IndexReader>* index_reader) 
 
 InternalIterator* SeekTable::NewDataBlockIterator(const BlockHandle& handle,
                                                 SeekDataBlockIter* input_iter) const {
-    BlockContents contents;
+    Slice contents;
     bool pined;
     Status s = RetrieveBlock(handle, &contents, &pined);
     if (!s.ok()) {
@@ -206,7 +206,7 @@ Status SeekTable::IndexReader::ReadIndexBlock(const SeekTable* table,
     assert(index_block);
     const Rep* const rep = table->get_rep();
     assert(rep != nullptr);
-    BlockContents contents;
+    Slice contents;
     const Status s = table->RetrieveBlock(rep->footer.index_handle(), &contents);
     *index_block = new SeekBlock(std::move(contents));
 
@@ -442,7 +442,7 @@ void SeekTableIterator::FollowAndGetPilot(PilotValue* pilot) {
     }
 
     assert(Valid());
-    Slice k = key();
+    // Slice k = key();
     // we should avoid reseek
     // pilot_iter_->Seek(k);
     // there is extra one for the first special key
@@ -451,7 +451,7 @@ void SeekTableIterator::FollowAndGetPilot(PilotValue* pilot) {
     pilot_iter_->SeekToRestartPoint(restart_point);
     pilot_iter_->ParseNextDataKey();
     assert(pilot_iter_->Valid());
-    assert(k.compare(pilot_iter_->key()) == 0);
+    // assert(k.compare(pilot_iter_->key()) == 0);
     GetPilot(pilot);
 }
 
