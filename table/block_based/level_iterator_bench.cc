@@ -3,7 +3,6 @@
 #include "table/block_based/pilot_block_mars.h"
 #include "table/merging_iterator.h"
 #include "include/rocksdb/env.h"
-#include "test_util/testutil.h"
 
 #include <nlohmann/json.hpp>
 
@@ -23,9 +22,17 @@ using micro_seconds = std::chrono::duration<double, std::ratio<1, 1000000>>;
 using milli_seconds = std::chrono::duration<double, std::ratio<1, 1000>>;
 using seconds = std::chrono::duration<double, std::ratio<1, 1>>;
 
+Slice RandomString(Random* rnd, int len, std::string* dst) {
+  dst->resize(len);
+  for (int i = 0; i < len; i++) {
+    (*dst)[i] = static_cast<char>(' ' + rnd->Uniform(95));  // ' ' .. '~'
+  }
+  return Slice(*dst);
+}
+
 static std::string RandomString(Random *rnd, int len) {
     std::string r;
-    test::RandomString(rnd, len, &r);
+    RandomString(rnd, len, &r);
     return r;
 }
 std::string GenerateKey(int primary_key, int secondary_key, int padding_size,
@@ -133,6 +140,9 @@ struct Benchmark {
 
     std::string path;
 
+    EnvOptions env_options_;
+    Env* env_;
+
     Benchmark(int _num_records = 100000, int _layers = 5, int _rnd = 1234, std::string _path = "./")
     : rnd(_rnd),
     num_records(_num_records),
@@ -141,13 +151,20 @@ struct Benchmark {
     readers(new SeekTable*[layers]),
     iters(new SeekTableIterator*[layers]),
     timer(base_config),
-    path(_path)
+    path(_path),
+    env_(Env::Default())
     {
         GenerateRandomKVs(&keys, &values, 0, num_records);
         file_reader.resize(layers);
         file_writer.resize(layers);
+        env_->OptimizeForManifestWrite(env_options_);
         for (int i = 0; i < layers; i++) {
-            file_writer[i].reset(test::GetWritableFileWriter(new test::StringSink(), ""));
+            char buf[50];
+            sprintf(buf, "/tmp/bench/table%d", i);
+            std::unique_ptr<WritableFile> file;
+            NewWritableFile(env_, buf, &file, env_options_);
+            file_writer[i].reset(new WritableFileWriter(
+                std::move(file), buf, env_options_, env_, nullptr));
         }
         for (int i = 0; i < num_records; i++) {
             sequences.push_back(rnd.Uniform(layers));
@@ -182,16 +199,20 @@ struct Benchmark {
             return;
         }
         file_writer[idx]->Flush();
-        file_reader[idx].reset(test::GetRandomAccessFileReader(new test::StringSource(
-            static_cast<test::StringSink*>(file_writer[idx]->writable_file())->contents(),
-            1, true)));
+        std::unique_ptr<RandomAccessFile> file;
+        std::string name = file_writer[idx]->file_name();
+        env_options_.use_mmap_reads = true;
+        env_->NewRandomAccessFile(name,
+            &file, env_options_);
+        file_reader[idx].reset(
+            new RandomAccessFileReader(std::move(file), name, env_));
     }
 
     size_t size(int idx) {
         if (idx < 0 || idx >= layers) {
             return 0;
         }
-        return static_cast<test::StringSink*>(file_writer[idx]->writable_file())->contents().size();
+        return file_writer[idx]->GetFileSize();
     }
 
     void Run() {
@@ -228,9 +249,13 @@ struct Benchmark {
                     Slice v = iter->value();
                     count++;
                     int cmprslt = k.ToString().compare(keys[next_index]);
-                    assert(cmprslt == 0);
+                    if (cmprslt != 0) {
+                        std::cout << "panic!" << std::endl;
+                    }
                     cmprslt = v.ToString().compare(values[next_index]);
-                    assert(cmprslt == 0);
+                    if (cmprslt != 0) {
+                        std::cout << "panic!" << std::endl;
+                    }
                     next_index++;
                     iter->Next();
                 } while (next_index < end);
@@ -386,21 +411,27 @@ struct MarsBench : public Benchmark {
     }
 
     void Finish() override {
-        pilot_file.reset(test::GetWritableFileWriter(
-                                new test::StringSink(), ""));
+        std::unique_ptr<WritableFile> file;
+        char buf[50];
+        sprintf(buf, "/tmp/bench/pilot");
+        NewWritableFile(env_, buf, &file, env_options_);
+        pilot_file.reset(new WritableFileWriter(
+            std::move(file), buf, env_options_, env_, nullptr));
         PilotBlockMarsBuilder pilot_builder(*cmp, readers, layers, &counts, pilot_file.get());
         pilot_builder.Build();
         Status s = pilot_builder.Finish();
         assert(s.ok());
         pilot_file->Flush();
 
+        std::unique_ptr<RandomAccessFile> read_file;
+        env_options_.use_mmap_reads = true;
+        env_->NewRandomAccessFile(buf,
+            &read_file, env_options_);
         pilot_reader.reset(
-            test::GetRandomAccessFileReader(new test::StringSource(
-                static_cast<test::StringSink*>(pilot_file->writable_file())->contents(),
-                1, false)));
+            new RandomAccessFileReader(std::move(read_file), buf, env_));
         
         SeekTable::Open(*cmp, std::move(pilot_reader),
-            static_cast<test::StringSink*>(pilot_file->writable_file())->contents().size(),
+            pilot_file->GetFileSize(),
             &pilot_table, 0);
         std::unique_ptr<PilotBlockMarsIterator> level_iter;
         level_iter.reset(new PilotBlockMarsIterator(pilot_table.get(), &counts, iters, cmp));
