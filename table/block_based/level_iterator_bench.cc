@@ -447,14 +447,49 @@ struct MarsBench : public Benchmark {
     std::vector<uint16_t*> counts;
 };
 
+struct TableBench : public Benchmark {
+    TableBench()
+    : Benchmark() {}
+
+    TableBench(int _num, int _rnd)
+    : Benchmark(_num, 1, _rnd) {}
+
+    void Prepare() override {
+        std::cout << "Table benchmark" << std::endl;
+        base_config["bench"] = "table";
+        SeekTableBuilder* builder = new SeekTableBuilder(*cmp, file_writer[0].get());
+        for (int i = 0; i < num_records; i++) {
+            builder->Add(keys[i], values[i]);
+        }
+        Status s = builder->Finish();
+        assert(s.ok());
+        Flush(0);
+        std::unique_ptr<RandomAccessFileReader>& file_reader_ = file_reader[0];
+        std::unique_ptr<SeekTable> reader;
+        SeekTable::Open(*cmp, std::move(file_reader_),
+            size(0), &reader, 0);
+        readers[0] = reader.release();
+        iters[0] = readers[0]->NewSeekTableIter();
+        delete builder;
+    }
+
+    void Finish() override {}
+
+    InternalIterator* GetIter() override {
+        return iters[0];
+    }
+};
+
 }; // namespace namerocksdb
 
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cout << argv[0] << " [m/p/r] [num_records] [layers] [rnd] [path]" << std::endl;
+        std::cout << argv[0] << " [m/p/r/t] [num_records] [layers] [rnd] [path]" << std::endl;
         std::cout << "m for merging iterator" << std::endl;
         std::cout << "p for pilot guided iterator" << std::endl;
+        std::cout << "r for pilot mars iterator" << std::endl;
+        std::cout << "t for table iterator" << std::endl;
         exit(1);
     }
     int num_records = 100000;
@@ -488,8 +523,11 @@ int main(int argc, char** argv) {
     case 'r':
         bench = new rocksdb::MarsBench(num_records, layers, rnd);
         break;
+    case 't':
+        bench = new rocksdb::TableBench(num_records, rnd);
+        break;
     default:
-        std::cout << argv[0] << " [m/p/r]" << std::endl;
+        std::cout << argv[0] << " [m/p/r/t]" << std::endl;
         exit(1);
         break;
     }
