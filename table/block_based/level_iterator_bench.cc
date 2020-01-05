@@ -184,7 +184,7 @@ struct Benchmark {
         delete cmp;
         for (int i = 0; i < layers; i++) {
             delete readers[i];
-            delete iters;
+            delete iters[i];
         }
         delete[] readers;
         delete[] iters;

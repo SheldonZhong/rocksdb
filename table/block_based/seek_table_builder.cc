@@ -55,7 +55,7 @@ struct SeekTableBuilder::Rep {
         file_creation_time(_file_creation_time),
         block_size(_block_size) {
 
-    index_builder.reset(new SeekIndexBuilder(&comparator));
+    index_builder.reset(new SeekIndexBuilder());
 
     if (lower_levels != nullptr && n > 0) {
         pilot_builder.reset(new PilotBlockBuilder(

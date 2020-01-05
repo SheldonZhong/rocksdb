@@ -14,8 +14,7 @@ class SeekIndexBuilder {
         std::unordered_map<std::string, Slice> meta_blocks;
     };
 
-        explicit SeekIndexBuilder(const Comparator* comparator)
-            : comparator_(comparator) {}
+        explicit SeekIndexBuilder() {}
 
         void AddIndexEntry(std::string* last_key_in_current_block,
                             const Slice* first_key_index_next_block,
@@ -34,7 +33,6 @@ class SeekIndexBuilder {
         size_t IndexSize() const { return index_size_; }
 
     private:
-        const Comparator* comparator_;
         SeekBlockBuilder index_block_builder_;
         std::string current_block_first_internal_key_;
         size_t index_size_ = 0;

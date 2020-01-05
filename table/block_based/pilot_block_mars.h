@@ -51,7 +51,7 @@ class PilotBlockMarsIterator : public InternalIterator {
             assert(s.ok());
         }
 
-        bool Valid() const;
+        bool Valid() const override;
     
     private:
         SeekTable* pilot_block_;

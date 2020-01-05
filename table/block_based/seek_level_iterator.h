@@ -24,7 +24,7 @@ class SeekLevelIterator : public InternalIterator {
                 delete[] count_;
             }
         }
-        bool Valid() const;
+        bool Valid() const override;
         void SeekToFirst() override;
         void SeekToLast() override {}
         void Seek(const Slice& target) override;
