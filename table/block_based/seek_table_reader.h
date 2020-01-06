@@ -21,10 +21,6 @@ class SeekTable {
 
         Status Get(const Slice& key);
 
-        InternalIterator* NewDataBlockIterator(
-                const BlockHandle& block_handle,
-                SeekDataBlockIter* input_iter = nullptr) const;
-
         void MultiGet();
 
         Status DumpTable(WritableFile* out_file);
@@ -65,6 +61,7 @@ class SeekTable {
         const Rep* get_rep() const { return rep_; }
 
     private:
+        friend class SeekTableIterator;
         Rep* rep_;
         explicit SeekTable(Rep* rep) : rep_(rep) {}
 
@@ -76,7 +73,7 @@ class SeekTable {
                             std::unique_ptr<SeekBlock>* pilot_block,
                             std::unique_ptr<SeekDataBlockIter>* iter);
 
-        Status RetrieveBlock(const BlockHandle& handle,
+        inline Status RetrieveBlock(const BlockHandle& handle,
                             Slice* contents,
                             bool* pined = nullptr) const;
 

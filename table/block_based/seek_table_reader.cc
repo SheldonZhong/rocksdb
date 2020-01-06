@@ -189,18 +189,6 @@ Status SeekTable::CreateIndexReader(std::unique_ptr<IndexReader>* index_reader) 
     return IndexReader::Create(this, index_reader);
 }
 
-InternalIterator* SeekTable::NewDataBlockIterator(const BlockHandle& handle,
-                                                SeekDataBlockIter* input_iter) const {
-    Slice contents;
-    bool pined;
-    Status s = RetrieveBlock(handle, &contents, &pined);
-    if (!s.ok()) {
-        return nullptr;
-    }
-    SeekBlock block(std::move(contents));
-    return block.NewDataIterator(&rep_->comparator, pined, input_iter);
-}
-
 InternalIterator* SeekTable::NewIterator() const {
     return NewSeekTableIter();
 }
@@ -294,38 +282,24 @@ void SeekTableIterator::SeekImpl(const Slice* target) {
 void SeekTableIterator::HintedSeek(const Slice& target,
                     uint32_t index_left, uint32_t index_right,
                     uint32_t data_left, uint32_t data_right) {
-    bool seek_index = true;
-    if (block_iter_.Valid() && index_iter_->Valid()) {
-            if (comp_.Compare(target,
-                                block_iter_.key()) > 0 &&
-                comp_.Compare(target,
-                                index_iter_->key()) < 0) {
-                seek_index = false;
-                data_left = 0;
-                data_right = block_iter_.num_restarts_;
-            }
+    uint32_t index = 0;
+    index_iter_->HintedSeek(target, index_left, index_right, &index);
+
+    if (!index_iter_->Valid()) {
+        block_iter_points_to_real_block_ = false;
+        return;
     }
+    InitDataBlock();
 
-    if (seek_index) {
-        uint32_t index = 0;
-        index_iter_->HintedSeek(target, index_left, index_right, &index);
+    if (index_left == index_right) {
 
-        if (!index_iter_->Valid()) {
-            block_iter_points_to_real_block_ = false;
-            return;
-        }
-        InitDataBlock();
-
-        if (index_left == index_right) {
-
-        } else if (index == index_left) {
-            data_right = block_iter_.num_restarts_;
-        } else if (index == index_right) {
-            data_left = 0;
-        } else {
-            data_left = 0;
-            data_right = block_iter_.num_restarts_;
-        }
+    } else if (index == index_left) {
+        data_right = block_iter_.num_restarts_;
+    } else if (index == index_right) {
+        data_left = 0;
+    } else {
+        data_left = 0;
+        data_right = block_iter_.num_restarts_;
     }
 
     block_iter_.HintedSeek(target, data_left, data_right);
@@ -392,7 +366,23 @@ void SeekTableIterator::InitDataBlock() {
     // TODO: remove class instantiation to avoid constructor overhead
     IndexValue v;
     v.DecodeFrom(&index_value, false, nullptr);
-    table_->NewDataBlockIterator(v.handle, &block_iter_);
+    // table_->NewDataBlockIterator(v.handle, &block_iter_);
+    Slice contents;
+    bool pined = false;
+    Status s = table_->RetrieveBlock(v.handle, &contents, &pined);
+    if (!s.ok()) {
+        return;
+    }
+    // SeekBlock block(std::move(contents));
+    // block.NewDataIterator(&comp_, pined, &block_iter_);
+    const char* data = contents.data();
+    size_t size = contents.size();
+    uint32_t num_entries;
+    memcpy(&num_entries, data + size - sizeof(uint32_t), sizeof(uint32_t));
+    uint32_t restart_offset = static_cast<uint32_t>(size) -
+                        (1 + num_entries) * sizeof(uint32_t);
+    block_iter_.Initialize(&comp_, data, restart_offset, num_entries, pined);
+
     // assumes after initialize, without call to SeekToFirst
     data_count_ = block_iter_.GetRestartIndex();
     index_count_ = v.handle.restarts();
