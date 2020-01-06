@@ -147,7 +147,7 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle,
 Status SeekTable::ReadMetaBlock(std::unique_ptr<SeekBlock>* meta_block,
                                 std::unique_ptr<InternalIterator>* iter) {
     Slice contents;
-    bool pined;
+    bool pined = false;
     Status s = RetrieveBlock(rep_->footer.metaindex_handle(), &contents, &pined);
 
     meta_block->reset(new SeekBlock(std::move(contents)));
@@ -160,7 +160,7 @@ Status SeekTable::ReadPilotBlock(const BlockHandle& handle,
                                 std::unique_ptr<SeekBlock>* pilot_block,
                                 std::unique_ptr<SeekDataBlockIter>* iter) {
     Slice contents;
-    bool pined;
+    bool pined = false;
     Status s = RetrieveBlock(handle, &contents, &pined);
     pilot_block->reset(new SeekBlock(std::move(contents)));
     iter->reset(pilot_block->get()->NewDataIterator(&rep_->comparator, pined));
