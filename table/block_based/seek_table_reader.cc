@@ -7,6 +7,7 @@ namespace rocksdb
 struct SeekTable::Rep {
     Rep(const Comparator& _comparator, int _level)
         : comparator(_comparator),
+        mmapped(false),
         level(_level) {}
     const Comparator& comparator;
     Status status;
@@ -16,6 +17,8 @@ struct SeekTable::Rep {
 
     std::unique_ptr<IndexReader> index_reader;
     std::unique_ptr<SeekDataBlockIter> pilot_block;
+
+    bool mmapped;
 
     int level;
 
@@ -103,17 +106,26 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle,
     // contents->is_raw_block = true;
     Status s;
     size_t n = static_cast<size_t>(handle.size());
-    char* buf = new char[n + kBlockTrailerSize];
+    char* buf = nullptr;
+    if (!rep_->mmapped) {
+        // only the first time will new and delete for mmapped file
+        // ReadMetaBlock will tell whether it's mmapped or not
+        buf = new char[n + kBlockTrailerSize];
+    }
     s = rep_->file->Read(handle.offset(),
                         n + kBlockTrailerSize,
                         &slice, buf);
     // std::this_thread::sleep_for(std::chrono::microseconds(100));
     if (!s.ok()) {
-        delete[] buf;
+        if (buf != nullptr) {
+            delete[] buf;
+        }
         return s;
     }
     if (slice.size() != n + kBlockTrailerSize) {
-        delete[] buf;
+        if (buf != nullptr) {
+            delete[] buf;
+        }
         return Status::Corruption("block has been truncated.");
     }
     const char* data = slice.data();
@@ -127,7 +139,9 @@ Status SeekTable::RetrieveBlock(const BlockHandle& handle,
     // }
 
     if (data != buf) {
-        delete[] buf;
+        if (buf != nullptr) {
+            delete[] buf;
+        }
         *contents = Slice(data, n);
         // might be leak here
         if (pined != nullptr) {
@@ -149,6 +163,10 @@ Status SeekTable::ReadMetaBlock(std::unique_ptr<SeekBlock>* meta_block,
     Slice contents;
     bool pined = false;
     Status s = RetrieveBlock(rep_->footer.metaindex_handle(), &contents, &pined);
+    if (pined == false) {
+        // mmapped
+        rep_->mmapped = true;
+    }
 
     meta_block->reset(new SeekBlock(std::move(contents)));
     // global one bytewise comparator
