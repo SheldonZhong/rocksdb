@@ -188,8 +188,8 @@ static std::unordered_map<std::string,
     block_base_table_data_block_index_type_string_map = {
         {"kDataBlockBinarySearch",
          BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinarySearch},
-        {"kDataBlockBinaryAndHash",
-         BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinaryAndHash}};
+        {"kDataBlockDiscBit",
+         BlockBasedTableOptions::DataBlockIndexType::kDataBlockDBit}};
 
 static std::unordered_map<std::string,
                           BlockBasedTableOptions::IndexShorteningMode>
@@ -646,13 +646,6 @@ Status BlockBasedTableFactory::ValidateOptions(
   if (table_options_.block_size > std::numeric_limits<uint32_t>::max()) {
     return Status::InvalidArgument(
         "block size exceeds maximum number (4GiB) allowed");
-  }
-  if (table_options_.data_block_index_type ==
-          BlockBasedTableOptions::kDataBlockBinaryAndHash &&
-      table_options_.data_block_hash_table_util_ratio <= 0) {
-    return Status::InvalidArgument(
-        "data_block_hash_table_util_ratio should be greater than 0 when "
-        "data_block_index_type is set to kDataBlockBinaryAndHash");
   }
   if (db_opts.unordered_write && cf_opts.max_successive_merges > 0) {
     // TODO(myabandeh): support it

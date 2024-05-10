@@ -24,6 +24,7 @@
 #include "rocksdb/table.h"
 #include "table/block_based/block_prefix_index.h"
 #include "table/block_based/data_block_hash_index.h"
+#include "table/block_based/dbit_block_index.h"
 #include "table/format.h"
 #include "table/internal_iterator.h"
 #include "test_util/sync_point.h"
@@ -287,7 +288,8 @@ class Block {
   // Used by block iterators to calculate current key index within a block
   uint32_t block_restart_interval_{0};
   uint8_t protection_bytes_per_key_{0};
-  DataBlockHashIndex data_block_hash_index_;
+  // DataBlockHashIndex data_block_hash_index_;
+  DiscBitBlockIndex disc_bit_block_index_;
 };
 
 // A `BlockIter` iterates over the entries in a `Block`'s data buffer. The
@@ -466,6 +468,8 @@ class BlockIter : public InternalIteratorBase<TValue> {
   uint32_t block_restart_interval_;
   uint8_t protection_bytes_per_key_;
 
+  DiscBitBlockIndex* disc_bit_block_index_;
+
   bool key_pinned_;
   // Whether the block data is guaranteed to outlive this iterator, and
   // as long as the cleanup functions are transferred to another class,
@@ -525,7 +529,7 @@ class BlockIter : public InternalIteratorBase<TValue> {
                       uint32_t restarts, uint32_t num_restarts,
                       SequenceNumber global_seqno, bool block_contents_pinned,
                       bool user_defined_timestamp_persisted,
-
+                      DiscBitBlockIndex* disc_bit_block_index,
                       uint8_t protection_bytes_per_key, const char* kv_checksum,
                       uint32_t block_restart_interval) {
     assert(data_ == nullptr);  // Ensure it is called only once
@@ -548,6 +552,7 @@ class BlockIter : public InternalIteratorBase<TValue> {
     protection_bytes_per_key_ = protection_bytes_per_key;
     kv_checksum_ = kv_checksum;
     block_restart_interval_ = block_restart_interval;
+    disc_bit_block_index_ = disc_bit_block_index;
     // Checksum related states are either all 0/nullptr or all non-zero.
     // One exception is when num_restarts == 0, block_restart_interval can be 0
     // since we are not able to compute it.
@@ -675,6 +680,10 @@ class BlockIter : public InternalIteratorBase<TValue> {
   inline bool BinarySeek(const Slice& target, uint32_t* index,
                          bool* is_index_key_result);
 
+  template <typename DecodeKeyFunc>
+  inline bool DiscBitSeek(const Slice& target, uint32_t* index,
+                          bool* is_index_key_result);
+
   // Find the first key in restart interval `index` that is >= `target`.
   // If there is no such key, iterator is positioned at the first key in
   // restart interval `index + 1`.
@@ -698,17 +707,19 @@ class DataBlockIter final : public BlockIter<Slice> {
                   BlockReadAmpBitmap* read_amp_bitmap,
                   bool block_contents_pinned,
                   bool user_defined_timestamps_persisted,
-                  DataBlockHashIndex* data_block_hash_index,
+                  // DataBlockHashIndex* data_block_hash_index,
+                  DiscBitBlockIndex* disc_bit_block_index,
                   uint8_t protection_bytes_per_key, const char* kv_checksum,
                   uint32_t block_restart_interval) {
     InitializeBase(raw_ucmp, data, restarts, num_restarts, global_seqno,
                    block_contents_pinned, user_defined_timestamps_persisted,
+                   disc_bit_block_index,
                    protection_bytes_per_key, kv_checksum,
                    block_restart_interval);
     raw_key_.SetIsUserKey(false);
     read_amp_bitmap_ = read_amp_bitmap;
     last_bitmap_offset_ = current_ + 1;
-    data_block_hash_index_ = data_block_hash_index;
+    // data_block_hash_index_ = data_block_hash_index;
   }
 
   Slice value() const override {
@@ -727,7 +738,8 @@ class DataBlockIter final : public BlockIter<Slice> {
 #ifndef NDEBUG
     if (TEST_Corrupt_Callback("DataBlockIter::SeekForGet")) return true;
 #endif
-    if (!data_block_hash_index_) {
+    // if (!data_block_hash_index_) {
+    if (!disc_bit_block_index_) {
       SeekImpl(target);
       UpdateKey();
       return true;
@@ -784,8 +796,6 @@ class DataBlockIter final : public BlockIter<Slice> {
   std::vector<CachedPrevEntry> prev_entries_;
   int32_t prev_entries_idx_ = -1;
 
-  DataBlockHashIndex* data_block_hash_index_;
-
   bool SeekForGetImpl(const Slice& target);
 };
 
@@ -805,6 +815,7 @@ class MetaBlockIter final : public BlockIter<Slice> {
     InitializeBase(BytewiseComparator(), data, restarts, num_restarts,
                    kDisableGlobalSequenceNumber, block_contents_pinned,
                    /* user_defined_timestamps_persisted */ true,
+                   /* DiscBitBlockIndex* */ nullptr,
                    protection_bytes_per_key, kv_checksum,
                    block_restart_interval);
     raw_key_.SetIsUserKey(true);
@@ -847,7 +858,9 @@ class IndexBlockIter final : public BlockIter<IndexValue> {
                   uint32_t block_restart_interval) {
     InitializeBase(raw_ucmp, data, restarts, num_restarts,
                    kDisableGlobalSequenceNumber, block_contents_pinned,
-                   user_defined_timestamps_persisted, protection_bytes_per_key,
+                   user_defined_timestamps_persisted,
+                   /* DiscBitBlockIndex* */ nullptr,
+                   protection_bytes_per_key,
                    kv_checksum, block_restart_interval);
     raw_key_.SetIsUserKey(!key_includes_seq);
     prefix_index_ = prefix_index;

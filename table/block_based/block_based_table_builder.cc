@@ -468,13 +468,13 @@ struct BlockBasedTableBuilder::Rep {
                            ->CanKeysWithDifferentByteContentsBeEqual()
                        ? BlockBasedTableOptions::kDataBlockBinarySearch
                        : table_options.data_block_index_type,
-                   table_options.data_block_hash_table_util_ratio, ts_sz,
+                   ts_sz,
                    persist_user_defined_timestamps),
         range_del_block(
             1 /* block_restart_interval */, true /* use_delta_encoding */,
             false /* use_value_delta_encoding */,
             BlockBasedTableOptions::kDataBlockBinarySearch /* index_type */,
-            0.75 /* data_block_hash_table_util_ratio */, ts_sz,
+            ts_sz,
             persist_user_defined_timestamps),
         internal_prefix_transform(prefix_extractor.get()),
         compression_type(tbo.compression_type),

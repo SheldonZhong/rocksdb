@@ -137,13 +137,13 @@ PartitionedIndexBuilder::PartitionedIndexBuilder(
           table_opt.index_block_restart_interval, true /*use_delta_encoding*/,
           use_value_delta_encoding,
           BlockBasedTableOptions::kDataBlockBinarySearch /* index_type */,
-          0.75 /* data_block_hash_table_util_ratio */, ts_sz,
+          ts_sz,
           persist_user_defined_timestamps, false /* is_user_key */),
       index_block_builder_without_seq_(
           table_opt.index_block_restart_interval, true /*use_delta_encoding*/,
           use_value_delta_encoding,
           BlockBasedTableOptions::kDataBlockBinarySearch /* index_type */,
-          0.75 /* data_block_hash_table_util_ratio */, ts_sz,
+          ts_sz,
           persist_user_defined_timestamps, true /* is_user_key */),
       table_opt_(table_opt),
       // We start by false. After each partition we revise the value based on

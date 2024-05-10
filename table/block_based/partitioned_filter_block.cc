@@ -38,15 +38,17 @@ PartitionedFilterBlockBuilder::PartitionedFilterBlockBuilder(
           index_block_restart_interval, true /*use_delta_encoding*/,
           use_value_delta_encoding,
           BlockBasedTableOptions::kDataBlockBinarySearch /* index_type */,
-          0.75 /* data_block_hash_table_util_ratio */, ts_sz,
+          ts_sz,
           persist_user_defined_timestamps, false /* is_user_key */),
       index_on_filter_block_builder_without_seq_(
           index_block_restart_interval, true /*use_delta_encoding*/,
           use_value_delta_encoding,
           BlockBasedTableOptions::kDataBlockBinarySearch /* index_type */,
-          0.75 /* data_block_hash_table_util_ratio */, ts_sz,
-          persist_user_defined_timestamps, true /* is_user_key */) {
-  // Compute keys_per_partition_
+          ts_sz,
+          persist_user_defined_timestamps, true /* is_user_key */),
+      p_index_builder_(p_index_builder),
+      keys_added_to_partition_(0),
+      total_added_in_built_(0) {
   keys_per_partition_ = static_cast<uint32_t>(
       filter_bits_builder_->ApproximateNumEntries(partition_size));
   if (keys_per_partition_ < 1) {
