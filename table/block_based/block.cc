@@ -300,18 +300,27 @@ void DataBlockIter::PrevImpl() {
 }
 
 void DataBlockIter::SeekImpl(const Slice& target) {
+  // use locate key in the block
+  // determine a position
+  // read the key, do key comparisons and perform all the logics
   Slice seek_key = target;
   PERF_TIMER_GUARD(block_seek_nanos);
   if (data_ == nullptr) {  // Not init yet
     return;
   }
+
+  // index is a return value
   uint32_t index = 0;
   bool skip_linear_scan = false;
-  bool ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+
+  // TODO: make this conditional on options
+  // bool ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+  bool ok = DiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
 
   if (!ok) {
     return;
   }
+
   FindKeyAfterBinarySeek(seek_key, index, skip_linear_scan);
 }
 
@@ -323,7 +332,10 @@ void MetaBlockIter::SeekImpl(const Slice& target) {
   }
   uint32_t index = 0;
   bool skip_linear_scan = false;
-  bool ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+
+  // TODO: make this conditional on options
+  // bool ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+  bool ok = DiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
 
   if (!ok) {
     return;
@@ -358,36 +370,9 @@ void MetaBlockIter::SeekImpl(const Slice& target) {
 //    but larger type).
 bool DataBlockIter::SeekForGetImpl(const Slice& target) {
   Slice target_user_key = ExtractUserKey(target);
-  uint32_t map_offset = restarts_ + num_restarts_ * sizeof(uint32_t);
-  uint8_t entry =
-      data_block_hash_index_->Lookup(data_, map_offset, target_user_key);
 
-  if (entry == kCollision) {
-    // HashSeek not effective, falling back
-    SeekImpl(target);
-    return true;
-  }
-
-  if (entry == kNoEntry) {
-    // Even if we cannot find the user_key in this block, the result may
-    // exist in the next block. Consider this example:
-    //
-    // Block N:    [aab@100, ... , app@120]
-    // boundary key: axy@50 (we make minimal assumption about a boundary key)
-    // Block N+1:  [axy@10, ...   ]
-    //
-    // If seek_key = axy@60, the search will start from Block N.
-    // Even if the user_key is not found in the hash map, the caller still
-    // have to continue searching the next block.
-    //
-    // In this case, we pretend the key is in the last restart interval.
-    // The while-loop below will search the last restart interval for the
-    // key. It will stop at the first key that is larger than the seek_key,
-    // or to the end of the block if no one is larger.
-    entry = static_cast<uint8_t>(num_restarts_ - 1);
-  }
-
-  uint32_t restart_index = entry;
+  // TODO: make this conditional on options
+  uint32_t restart_index = disc_bit_block_index_->Lookup(target_user_key);
 
   // check if the key is in the restart_interval
   assert(restart_index < num_restarts_);
@@ -495,9 +480,12 @@ void IndexBlockIter::SeekImpl(const Slice& target) {
     // search simply lands at the right place.
     skip_linear_scan = true;
   } else if (value_delta_encoded_) {
-    ok = BinarySeek<DecodeKeyV4>(seek_key, &index, &skip_linear_scan);
+    // TODO: make this conditional on options
+    // ok = BinarySeek<DecodeKeyV4>(seek_key, &index, &skip_linear_scan);
+    ok = DiscBitSeek<DecodeKeyV4>(seek_key, &index, &skip_linear_scan);
   } else {
-    ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+    // ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+    ok = DiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
   }
 
   if (!ok) {
@@ -816,6 +804,42 @@ void BlockIter<TValue>::FindKeyAfterBinarySeek(const Slice& target,
   }
 }
 
+template <class TValue>
+template <typename DecodeKeyFunc>
+bool BlockIter<TValue>::DiscBitSeek(const Slice& target, uint32_t* index,
+                                   bool* skip_linear_scan) {
+  assert(disc_bit_block_index_ != nullptr);
+  assert(disc_bit_block_index_->Valid());
+
+  const uint64_t pkey = disc_bit_block_index_->SliceExtract(target);
+  const int64_t pos = disc_bit_block_index_->PkeyLookup(pkey);
+
+  // key access
+  uint32_t region_offset = GetRestartPoint(static_cast<uint32_t>(pos));
+
+  uint32_t shared, non_shared;
+  const char* key_ptr = DecodeKeyFunc()(
+      data_ + region_offset, data_ + restarts_, &shared, &non_shared);
+  if (key_ptr == nullptr || shared != 0) {
+    CorruptionError();
+    return false;
+  }
+
+  Slice probe_key(key_ptr, non_shared);
+  UpdateRawKeyAndMaybePadMinTimestamp(probe_key);
+  int cmp = CompareCurrentKey(target);
+
+  if (cmp == 0) {
+    *index = static_cast<uint32_t>(pos);
+    // The target key is found. The iterator is positioned at the target key.
+    *skip_linear_scan = true;
+    return true;
+  }
+
+  *index = disc_bit_block_index_->FinishSeek(target, probe_key, pos, pkey, cmp);
+  return true;
+}
+
 // Binary searches in restart array to find the starting restart point for the
 // linear scan, and stores it in `*index`. Assumes restart array does not
 // contain duplicate keys. It is guaranteed that the restart key at `*index + 1`
@@ -1019,19 +1043,6 @@ uint32_t Block::NumRestarts() const {
   assert(size_ >= 2 * sizeof(uint32_t));
   uint32_t block_footer = DecodeFixed32(data_ + size_ - sizeof(uint32_t));
   uint32_t num_restarts = block_footer;
-  if (size_ > kMaxBlockSizeSupportedByHashIndex) {
-    // In BlockBuilder, we have ensured a block with HashIndex is less than
-    // kMaxBlockSizeSupportedByHashIndex (64KiB).
-    //
-    // Therefore, if we encounter a block with a size > 64KiB, the block
-    // cannot have HashIndex. So the footer will directly interpreted as
-    // num_restarts.
-    //
-    // Such check is for backward compatibility. We can ensure legacy block
-    // with a vary large num_restarts i.e. >= 0x80000000 can be interpreted
-    // correctly as no HashIndex even if the MSB of num_restarts is set.
-    return num_restarts;
-  }
   BlockBasedTableOptions::DataBlockIndexType index_type;
   UnPackIndexTypeAndNumRestarts(block_footer, &index_type, &num_restarts);
   return num_restarts;
@@ -1039,10 +1050,6 @@ uint32_t Block::NumRestarts() const {
 
 BlockBasedTableOptions::DataBlockIndexType Block::IndexType() const {
   assert(size_ >= 2 * sizeof(uint32_t));
-  if (size_ > kMaxBlockSizeSupportedByHashIndex) {
-    // The check is for the same reason as that in NumRestarts()
-    return BlockBasedTableOptions::kDataBlockBinarySearch;
-  }
   uint32_t block_footer = DecodeFixed32(data_ + size_ - sizeof(uint32_t));
   uint32_t num_restarts = block_footer;
   BlockBasedTableOptions::DataBlockIndexType index_type;
@@ -1070,6 +1077,7 @@ Block::Block(BlockContents&& contents, size_t read_amp_bytes_per_bit,
   } else {
     // Should only decode restart points for uncompressed blocks
     num_restarts_ = NumRestarts();
+    // we have to know the index type from the raw encoding
     switch (IndexType()) {
       case BlockBasedTableOptions::kDataBlockBinarySearch:
         restart_offset_ = static_cast<uint32_t>(size_) -
@@ -1080,26 +1088,17 @@ Block::Block(BlockContents&& contents, size_t read_amp_bytes_per_bit,
           size_ = 0;
         }
         break;
-      case BlockBasedTableOptions::kDataBlockBinaryAndHash:
-        if (size_ < sizeof(uint32_t) /* block footer */ +
-                        sizeof(uint16_t) /* NUM_BUCK */) {
+      case BlockBasedTableOptions::kDataBlockDBit:
+        size_t index_size;
+        index_size = disc_bit_block_index_.Initialize(
+                  data_, size_ - sizeof(uint32_t), num_restarts_);
+
+        restart_offset_ = size_ - sizeof(uint32_t) - index_size;
+
+        if (restart_offset_ > size_ - sizeof(uint32_t)) {
+          // The size is too small for NumRestarts() and therefore
+          // restart_offset_ wrapped around.
           size_ = 0;
-          break;
-        }
-
-        uint16_t map_offset;
-        data_block_hash_index_.Initialize(
-            data_, static_cast<uint16_t>(size_ - sizeof(uint32_t)), /*chop off
-                                                                NUM_RESTARTS*/
-            &map_offset);
-
-        restart_offset_ = map_offset - num_restarts_ * sizeof(uint32_t);
-
-        if (restart_offset_ > map_offset) {
-          // map_offset is too small for NumRestarts() and
-          // therefore restart_offset_ wrapped around.
-          size_ = 0;
-          break;
         }
         break;
       default:
@@ -1278,7 +1277,7 @@ DataBlockIter* Block::NewDataIterator(const Comparator* raw_ucmp,
         raw_ucmp, data_, restart_offset_, num_restarts_, global_seqno,
         read_amp_bitmap_.get(), block_contents_pinned,
         user_defined_timestamps_persisted,
-        data_block_hash_index_.Valid() ? &data_block_hash_index_ : nullptr,
+        disc_bit_block_index_.Valid() ? &disc_bit_block_index_ : nullptr,
         protection_bytes_per_key_, kv_checksum_, block_restart_interval_);
     if (read_amp_bitmap_) {
       if (read_amp_bitmap_->GetStatistics() != stats) {

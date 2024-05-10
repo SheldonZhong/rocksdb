@@ -112,7 +112,7 @@ TEST_P(BlockTest, SimpleTest) {
                      : dataBlockIndexType();
   BlockBuilder builder(16, keyUseDeltaEncoding(),
                        false /* use_value_delta_encoding */, index_type,
-                       0.75 /* data_block_hash_table_util_ratio */, ts_sz,
+                       ts_sz,
                        shouldPersistUDT(), false /* is_user_key */);
   int num_records = 100000;
 
@@ -178,7 +178,7 @@ BlockContents GetBlockContents(
   builder->reset(
       new BlockBuilder(1 /* restart interval */, key_use_delta_encoding,
                        false /* use_value_delta_encoding */, dblock_index_type,
-                       0.75 /* data_block_hash_table_util_ratio */, ts_sz,
+                       ts_sz,
                        should_persist_udt, false /* is_user_key */));
 
   // Add only half of the keys
@@ -645,7 +645,7 @@ TEST_P(IndexBlockTest, IndexValueEncodingTest) {
   const bool kUseDeltaEncoding = true;
   BlockBuilder builder(16, kUseDeltaEncoding, useValueDeltaEncoding(),
                        BlockBasedTableOptions::kDataBlockBinarySearch,
-                       0.75 /* data_block_hash_table_util_ratio */, ts_sz,
+                       ts_sz,
                        shouldPersistUDT(), !keyIncludesSeq());
 
   int num_records = 100;

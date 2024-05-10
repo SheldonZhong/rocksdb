@@ -14,7 +14,7 @@
 
 #include "rocksdb/slice.h"
 #include "rocksdb/table.h"
-#include "table/block_based/data_block_hash_index.h"
+#include "table/block_based/dbit_block_index.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -28,7 +28,6 @@ class BlockBuilder {
                         bool use_value_delta_encoding = false,
                         BlockBasedTableOptions::DataBlockIndexType index_type =
                             BlockBasedTableOptions::kDataBlockBinarySearch,
-                        double data_block_hash_table_util_ratio = 0.75,
                         size_t ts_sz = 0,
                         bool persist_user_defined_timestamps = true,
                         bool is_user_key = false);
@@ -69,8 +68,8 @@ class BlockBuilder {
   // Returns an estimate of the current (uncompressed) size of the block
   // we are building.
   inline size_t CurrentSizeEstimate() const {
-    return estimate_ + (data_block_hash_index_builder_.Valid()
-                            ? data_block_hash_index_builder_.EstimateSize()
+    return estimate_ + (disc_bit_block_index_builder_.Valid()
+                            ? disc_bit_block_index_builder_.EstimateSize()
                             : 0);
   }
 
@@ -119,7 +118,8 @@ class BlockBuilder {
   int counter_;    // Number of entries emitted since restart
   bool finished_;  // Has Finish() been called?
   std::string last_key_;
-  DataBlockHashIndexBuilder data_block_hash_index_builder_;
+  // DataBlockHashIndexBuilder data_block_hash_index_builder_;
+  DiscBitBlockIndexBuilder disc_bit_block_index_builder_;
 #ifndef NDEBUG
   bool add_with_last_key_called_ = false;
 #endif

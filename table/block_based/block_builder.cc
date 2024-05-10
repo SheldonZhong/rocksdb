@@ -47,7 +47,7 @@ BlockBuilder::BlockBuilder(
     int block_restart_interval, bool use_delta_encoding,
     bool use_value_delta_encoding,
     BlockBasedTableOptions::DataBlockIndexType index_type,
-    double data_block_hash_table_util_ratio, size_t ts_sz,
+    size_t ts_sz,
     bool persist_user_defined_timestamps, bool is_user_key)
     : block_restart_interval_(block_restart_interval),
       use_delta_encoding_(use_delta_encoding),
@@ -60,9 +60,8 @@ BlockBuilder::BlockBuilder(
   switch (index_type) {
     case BlockBasedTableOptions::kDataBlockBinarySearch:
       break;
-    case BlockBasedTableOptions::kDataBlockBinaryAndHash:
-      data_block_hash_index_builder_.Initialize(
-          data_block_hash_table_util_ratio);
+    case BlockBasedTableOptions::kDataBlockDBit:
+      disc_bit_block_index_builder_.Initialize();
       break;
     default:
       assert(0);
@@ -79,8 +78,8 @@ void BlockBuilder::Reset() {
   counter_ = 0;
   finished_ = false;
   last_key_.clear();
-  if (data_block_hash_index_builder_.Valid()) {
-    data_block_hash_index_builder_.Reset();
+  if (disc_bit_block_index_builder_.Valid()) {
+    disc_bit_block_index_builder_.Reset();
   }
 #ifndef NDEBUG
   add_with_last_key_called_ = false;
@@ -129,13 +128,15 @@ Slice BlockBuilder::Finish() {
     PutFixed32(&buffer_, restarts_[i]);
   }
 
+  // pack certain footer based on the builder
+
   uint32_t num_restarts = static_cast<uint32_t>(restarts_.size());
   BlockBasedTableOptions::DataBlockIndexType index_type =
       BlockBasedTableOptions::kDataBlockBinarySearch;
-  if (data_block_hash_index_builder_.Valid() &&
-      CurrentSizeEstimate() <= kMaxBlockSizeSupportedByHashIndex) {
-    data_block_hash_index_builder_.Finish(buffer_);
-    index_type = BlockBasedTableOptions::kDataBlockBinaryAndHash;
+  // hash index checks for the max block size supported by hash index
+  if (disc_bit_block_index_builder_.Valid()) {
+    disc_bit_block_index_builder_.Finish(buffer_);
+    index_type = BlockBasedTableOptions::kDataBlockDBit;
   }
 
   // footer is a packed format of data_block_index_type and num_restarts
@@ -237,13 +238,12 @@ inline void BlockBuilder::AddWithLastKeyImpl(const Slice& key,
   }
 
   // TODO(yuzhangyu): make user defined timestamp work with block hash index.
-  if (data_block_hash_index_builder_.Valid()) {
+  if (disc_bit_block_index_builder_.Valid()) {
     // Only data blocks should be using `kDataBlockBinaryAndHash` index type.
     // And data blocks should always be built with internal keys instead of
     // user keys.
     assert(!is_user_key_);
-    data_block_hash_index_builder_.Add(ExtractUserKey(key),
-                                       restarts_.size() - 1);
+    disc_bit_block_index_builder_.Add(ExtractUserKey(key));
   }
 
   counter_++;

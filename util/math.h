@@ -23,6 +23,31 @@ ASSERT_FEATURE_COMPAT_HEADER();
 
 namespace ROCKSDB_NAMESPACE {
 
+template <typename T>
+inline T ParallelExtract(T v, T mask) {
+  static_assert(std::is_integral_v<T>, "non-integral type");
+  static_assert(!std::is_reference_v<T>, "use std::remove_reference_t");
+#ifdef __BMI2__
+  static_assert(sizeof(T) <= sizeof(unsigned long long), "type too big");
+  if (sizeof(T) <= sizeof(unsigned long)) {
+    return static_cast<T>(_pext_u32(static_cast<unsigned int>(v),
+                                         static_cast<unsigned int>(mask)));
+  } else {
+    return static_cast<T>(_pext_u64(static_cast<unsigned long long>(v),
+                                         static_cast<unsigned long long>(mask)));
+  }
+#else
+  T rv = 0;
+  for (T bp = 1; mask != 0; bp += bp) {
+    if (v & mask & -mask) {
+      rv |= bp;
+    }
+    mask &= (mask - 1);
+  }
+  return rv;
+#endif
+}
+
 // Fast implementation of extracting the bottom n bits of an integer.
 // To ensure fast implementation, undefined if n bits is full width or more.
 template <typename T>
