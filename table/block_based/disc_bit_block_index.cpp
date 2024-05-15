@@ -73,7 +73,7 @@ void DiscBitBlockIndexBuilder::Finish(std::string& buffer) {
   // this map seems unnecessary
   // we could use a vector of the pairs, and the index is the rank
 
-  size_t rank = 0;
+  uint8_t rank = 0;
   for (size_t i = 0; i < partial_mask_.size(); i++) {
     if (partial_mask_[i] == 0) {
       continue;
@@ -82,7 +82,7 @@ void DiscBitBlockIndexBuilder::Finish(std::string& buffer) {
       const uint8_t mask = (0x80 >> shift);
       if (partial_mask_[i] & mask) {
         const size_t pos = i * 8 + (7 - shift);
-        pos_rank_map.emplace(pos, static_cast<uint8_t>(rank));
+        pos_rank_map.emplace(pos, rank);
         assert(rank <= UINT8_MAX);
         rank++;
       }
@@ -98,12 +98,12 @@ void DiscBitBlockIndexBuilder::Finish(std::string& buffer) {
     assert(it != pos_rank_map.end());
 
     rank = it->second;
-    buffer.append(const_cast<const char*>(reinterpret_cast<const char*>(&rank)),
+    buffer.append(reinterpret_cast<const char*>(&rank),
                   sizeof(rank));
   }
 
   buffer.append(partial_mask_.data(), partial_mask_.size());
-  PutVarint32(&buffer, static_cast<uint32_t>(partial_mask_.size()));
+  PutFixed16(&buffer, static_cast<uint16_t>(partial_mask_.size()));
 }
 
 // returns how many bytes it uses
