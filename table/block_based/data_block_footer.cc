@@ -15,7 +15,7 @@ namespace ROCKSDB_NAMESPACE {
 
 const int kDataBlockIndexTypeBitShift = 31;
 
-const int kDataBlockDBitIndexTypeBitShift = 31;
+const int kDataBlockDiscBitIndexTypeBitShift = 31;
 
 // 0x3FFFFFFF
 const uint32_t kMaxNumRestarts = (1u << kDataBlockIndexTypeBitShift) - 1u;
@@ -31,8 +31,8 @@ uint32_t PackIndexTypeAndNumRestarts(
   }
 
   uint32_t block_footer = num_restarts;
-  if (index_type == BlockBasedTableOptions::kDataBlockDBit) {
-    block_footer |= 1u << kDataBlockDBitIndexTypeBitShift;
+  if (index_type == BlockBasedTableOptions::kDataBlockDiscBit) {
+    block_footer |= 1u << kDataBlockDiscBitIndexTypeBitShift;
   } else if (index_type != BlockBasedTableOptions::kDataBlockBinarySearch) {
     assert(0);
   }
@@ -45,8 +45,8 @@ void UnPackIndexTypeAndNumRestarts(
     BlockBasedTableOptions::DataBlockIndexType* index_type,
     uint32_t* num_restarts) {
   if (index_type) {
-    if (block_footer & 1u << kDataBlockDBitIndexTypeBitShift) {
-      *index_type = BlockBasedTableOptions::kDataBlockDBit;
+    if (block_footer & 1u << kDataBlockDiscBitIndexTypeBitShift) {
+      *index_type = BlockBasedTableOptions::kDataBlockDiscBit;
     } else {
       *index_type = BlockBasedTableOptions::kDataBlockBinarySearch;
     }

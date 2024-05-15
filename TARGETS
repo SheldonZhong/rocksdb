@@ -193,7 +193,7 @@ cpp_library_wrapper(name="rocksdb_lib", srcs=[
         "table/block_based/block_prefetcher.cc",
         "table/block_based/block_prefix_index.cc",
         "table/block_based/data_block_footer.cc",
-        "table/block_based/data_block_hash_index.cc",
+        "table/block_based/disc_bit_block_index.cc",
         "table/block_based/filter_block_reader_common.cc",
         "table/block_based/filter_policy.cc",
         "table/block_based/flush_block_policy.cc",
@@ -4724,8 +4724,8 @@ cpp_unittest_wrapper(name="customizable_test",
             extra_compiler_flags=[])
 
 
-cpp_unittest_wrapper(name="data_block_hash_index_test",
-            srcs=["table/block_based/data_block_hash_index_test.cc"],
+cpp_unittest_wrapper(name="disc_bit_block_index_test",
+            srcs=["table/block_based/disc_bit_block_index_test.cc"],
             deps=[":rocksdb_test_lib"],
             extra_compiler_flags=[])
 

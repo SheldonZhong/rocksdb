@@ -14,7 +14,7 @@
 
 #include "rocksdb/slice.h"
 #include "rocksdb/table.h"
-#include "table/block_based/dbit_block_index.h"
+#include "table/block_based/disc_bit_block_index.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -118,7 +118,6 @@ class BlockBuilder {
   int counter_;    // Number of entries emitted since restart
   bool finished_;  // Has Finish() been called?
   std::string last_key_;
-  // DataBlockHashIndexBuilder data_block_hash_index_builder_;
   DiscBitBlockIndexBuilder disc_bit_block_index_builder_;
 #ifndef NDEBUG
   bool add_with_last_key_called_ = false;

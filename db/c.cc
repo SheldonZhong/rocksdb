@@ -2882,11 +2882,6 @@ void rocksdb_block_based_options_set_data_block_index_type(
       static_cast<BlockBasedTableOptions::DataBlockIndexType>(v);
 }
 
-void rocksdb_block_based_options_set_data_block_hash_ratio(
-    rocksdb_block_based_table_options_t* options, double v) {
-  options->rep.data_block_hash_table_util_ratio = v;
-}
-
 void rocksdb_block_based_options_set_cache_index_and_filter_blocks(
     rocksdb_block_based_table_options_t* options, unsigned char v) {
   options->rep.cache_index_and_filter_blocks = v;

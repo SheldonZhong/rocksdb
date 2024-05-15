@@ -9145,7 +9145,6 @@ class BlockBasedTableOptionsJni
         IndexTypeJni::toJavaIndexType(table_factory_options->index_type),
         DataBlockIndexTypeJni::toJavaDataBlockIndexType(
             table_factory_options->data_block_index_type),
-        table_factory_options->data_block_hash_table_util_ratio,
         ChecksumTypeJni::toJavaChecksumType(table_factory_options->checksum),
         table_factory_options->no_block_cache,
         static_cast<jlong>(table_factory_options->block_size),

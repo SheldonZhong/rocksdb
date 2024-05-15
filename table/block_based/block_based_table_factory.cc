@@ -189,7 +189,7 @@ static std::unordered_map<std::string,
         {"kDataBlockBinarySearch",
          BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinarySearch},
         {"kDataBlockDiscBit",
-         BlockBasedTableOptions::DataBlockIndexType::kDataBlockDBit}};
+         BlockBasedTableOptions::DataBlockIndexType::kDataBlockDiscBit}};
 
 static std::unordered_map<std::string,
                           BlockBasedTableOptions::IndexShorteningMode>
@@ -264,11 +264,6 @@ static std::unordered_map<std::string, OptionTypeInfo>
          OptionTypeInfo::Enum<BlockBasedTableOptions::IndexShorteningMode>(
              offsetof(struct BlockBasedTableOptions, index_shortening),
              &block_base_table_index_shortening_mode_string_map)},
-        {"data_block_hash_table_util_ratio",
-         {offsetof(struct BlockBasedTableOptions,
-                   data_block_hash_table_util_ratio),
-          OptionType::kDouble, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone}},
         {"checksum",
          {offsetof(struct BlockBasedTableOptions, checksum),
           OptionType::kChecksumType, OptionVerificationType::kNormal,
@@ -762,9 +757,6 @@ std::string BlockBasedTableFactory::GetPrintableOptions() const {
   ret.append(buffer);
   snprintf(buffer, kBufferSize, "  index_shortening: %d\n",
            static_cast<int>(table_options_.index_shortening));
-  ret.append(buffer);
-  snprintf(buffer, kBufferSize, "  data_block_hash_table_util_ratio: %lf\n",
-           table_options_.data_block_hash_table_util_ratio);
   ret.append(buffer);
   snprintf(buffer, kBufferSize, "  checksum: %d\n", table_options_.checksum);
   ret.append(buffer);

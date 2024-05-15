@@ -1723,7 +1723,7 @@ block_fetcher_test: table/block_fetcher_test.o $(TEST_LIBRARY) $(LIBRARY)
 block_test: $(OBJ_DIR)/table/block_based/block_test.o $(TEST_LIBRARY) $(LIBRARY)
 	$(AM_LINK)
 
-data_block_hash_index_test: $(OBJ_DIR)/table/block_based/data_block_hash_index_test.o $(TEST_LIBRARY) $(LIBRARY)
+disc_bit_block_index_test: $(OBJ_DIR)/table/block_based/disc_bit_block_index_test.o $(TEST_LIBRARY) $(LIBRARY)
 	$(AM_LINK)
 
 inlineskiplist_test: $(OBJ_DIR)/memtable/inlineskiplist_test.o $(TEST_LIBRARY) $(LIBRARY)

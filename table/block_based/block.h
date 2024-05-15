@@ -23,8 +23,7 @@
 #include "rocksdb/statistics.h"
 #include "rocksdb/table.h"
 #include "table/block_based/block_prefix_index.h"
-#include "table/block_based/data_block_hash_index.h"
-#include "table/block_based/dbit_block_index.h"
+#include "table/block_based/disc_bit_block_index.h"
 #include "table/format.h"
 #include "table/internal_iterator.h"
 #include "test_util/sync_point.h"
@@ -288,7 +287,6 @@ class Block {
   // Used by block iterators to calculate current key index within a block
   uint32_t block_restart_interval_{0};
   uint8_t protection_bytes_per_key_{0};
-  // DataBlockHashIndex data_block_hash_index_;
   DiscBitBlockIndex disc_bit_block_index_;
 };
 
@@ -707,7 +705,6 @@ class DataBlockIter final : public BlockIter<Slice> {
                   BlockReadAmpBitmap* read_amp_bitmap,
                   bool block_contents_pinned,
                   bool user_defined_timestamps_persisted,
-                  // DataBlockHashIndex* data_block_hash_index,
                   DiscBitBlockIndex* disc_bit_block_index,
                   uint8_t protection_bytes_per_key, const char* kv_checksum,
                   uint32_t block_restart_interval) {
@@ -719,7 +716,6 @@ class DataBlockIter final : public BlockIter<Slice> {
     raw_key_.SetIsUserKey(false);
     read_amp_bitmap_ = read_amp_bitmap;
     last_bitmap_offset_ = current_ + 1;
-    // data_block_hash_index_ = data_block_hash_index;
   }
 
   Slice value() const override {
@@ -738,7 +734,6 @@ class DataBlockIter final : public BlockIter<Slice> {
 #ifndef NDEBUG
     if (TEST_Corrupt_Callback("DataBlockIter::SeekForGet")) return true;
 #endif
-    // if (!data_block_hash_index_) {
     if (!disc_bit_block_index_) {
       SeekImpl(target);
       UpdateKey();
