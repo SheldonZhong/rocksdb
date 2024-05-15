@@ -87,7 +87,7 @@ TEST_F(DiscBitBlockIndexTest, TestName2) {
   EXPECT_TRUE(true);  // Replace with your actual assertions
 }
 
-TEST(DiscBitBlockIndex, BlockBuilder) {
+TEST(DiscBitBlockIndex, PointQuery) {
   DiscBitBlockIndexBuilder builder;
   builder.Initialize();
 

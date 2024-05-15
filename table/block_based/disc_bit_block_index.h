@@ -34,7 +34,9 @@ namespace ROCKSDB_NAMESPACE {
 
 class DiscBitBlockIndexBuilder {
  public:
-  DiscBitBlockIndexBuilder() {}
+  DiscBitBlockIndexBuilder()
+  : unique_(0),
+    counter_(0) {}
 
   void Initialize();
 
@@ -60,7 +62,11 @@ class DiscBitBlockIndexBuilder {
 
 class DiscBitBlockIndex {
  public:
-  DiscBitBlockIndex() {}
+  DiscBitBlockIndex() 
+  : ranks_(nullptr),
+    max_rank_(0),
+    num_restarts_(0)
+  {}
 
   size_t Initialize(const char* data, size_t size,
                     uint32_t num_restarts);
@@ -79,6 +85,7 @@ class DiscBitBlockIndex {
  private:
   
   const uint8_t* ranks_; // ranks array
+  size_t num_ranks_;
   uint8_t max_rank_;
   size_t num_restarts_;
   std::string partial_mask_;
