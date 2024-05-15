@@ -102,6 +102,15 @@ TEST(DiscBitBlockIndex, BlockBuilder) {
 
   std::string buffer;
   builder.Finish(buffer);
+
+  Slice data(buffer);
+  DiscBitBlockIndex index;
+  index.Initialize(data.data(), data.size(), num_keys);
+
+  for (int i = 0; i < num_keys; i++) {
+    size_t pos = index.Lookup(Slice(keys[i]));
+    ASSERT_EQ(i, pos);
+  }
 }
 
 // Add more test cases as needed

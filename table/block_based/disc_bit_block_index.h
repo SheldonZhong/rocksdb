@@ -52,6 +52,8 @@ class DiscBitBlockIndexBuilder {
   std::string partial_mask_;
   std::vector<std::pair<size_t, uint8_t>> lcp_mask_pairs_;
   std::string last_key_;
+
+  size_t estimate_size_;
   int unique_;
   int counter_;
 };
