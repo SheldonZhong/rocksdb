@@ -18,8 +18,8 @@ uint8_t GetDiscBitMask(const Slice& key1, const Slice& key2, size_t shared) {
     assert(len == key1.size());
     diff = key2[len];
   } else {
-    const uint8_t byte1 = key1[len];
-    const uint8_t byte2 = key2[len];
+    const uint8_t byte1 = key1[shared];
+    const uint8_t byte2 = key2[shared];
     diff = byte1 ^ byte2;
   }
   assert(diff != 0);
@@ -81,7 +81,7 @@ void DiscBitBlockIndexBuilder::Finish(std::string& buffer) {
     for (int shift = 0; shift < 8; shift++) {
       const uint8_t mask = (0x80 >> shift);
       if (partial_mask_[i] & mask) {
-        const size_t pos = i * 8 + shift;
+        const size_t pos = i * 8 + (7 - shift);
         pos_rank_map.emplace(pos, static_cast<uint8_t>(rank));
         assert(rank <= UINT8_MAX);
         rank++;

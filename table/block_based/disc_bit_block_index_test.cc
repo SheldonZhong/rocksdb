@@ -8,6 +8,49 @@
 
 namespace ROCKSDB_NAMESPACE {
 
+std::string GenerateInternalKey(int primary_key, int secondary_key,
+                                int padding_size, Random *rnd,
+                                size_t ts_sz = 0) {
+  char buf[50];
+  char *p = &buf[0];
+  snprintf(buf, sizeof(buf), "%6d%4d", primary_key, secondary_key);
+  std::string k(p);
+  if (padding_size) {
+    k += rnd->RandomString(padding_size);
+  }
+  AppendInternalKeyFooter(&k, 0 /* seqno */, kTypeValue);
+  std::string key_with_ts;
+  if (ts_sz > 0) {
+    PadInternalKeyWithMinTimestamp(&key_with_ts, k, ts_sz);
+    return key_with_ts;
+  }
+
+  return k;
+}
+
+// Generate random key value pairs.
+// The generated key will be sorted. You can tune the parameters to generated
+// different kinds of test key/value pairs for different scenario.
+void GenerateRandomKVs(std::vector<std::string> *keys,
+                       std::vector<std::string> *values, const int from,
+                       const int len, const int step = 1,
+                       const int padding_size = 0,
+                       const int keys_share_prefix = 1, size_t ts_sz = 0) {
+  Random rnd(302);
+
+  // generate different prefix
+  for (int i = from; i < from + len; i += step) {
+    // generating keys that shares the prefix
+    for (int j = 0; j < keys_share_prefix; ++j) {
+      // `DataBlockIter` assumes it reads only internal keys.
+      keys->emplace_back(GenerateInternalKey(i, j, padding_size, &rnd, ts_sz));
+
+      // 100 bytes values
+      values->emplace_back(rnd.RandomString(100));
+    }
+  }
+}
+
 // Define a test fixture
 class DiscBitBlockIndexTest : public ::testing::Test {
  protected:
@@ -42,6 +85,23 @@ TEST_F(DiscBitBlockIndexTest, TestName2) {
 
   // Assert: Check the expected results
   EXPECT_TRUE(true);  // Replace with your actual assertions
+}
+
+TEST(DiscBitBlockIndex, BlockBuilder) {
+  DiscBitBlockIndexBuilder builder;
+  builder.Initialize();
+
+  std::vector<std::string> keys;
+  std::vector<std::string> values;
+  int num_keys = 100;
+  GenerateRandomKVs(&keys, &values, 0, num_keys, 1, 0, 1);
+
+  for (int i = 0; i < num_keys; i++) {
+    builder.Add(Slice(keys[i]));
+  }
+
+  std::string buffer;
+  builder.Finish(buffer);
 }
 
 // Add more test cases as needed
