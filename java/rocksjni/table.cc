@@ -53,7 +53,7 @@ jlong Java_org_rocksdb_BlockBasedTableConfig_newTableFactoryHandle(
     jboolean jpin_l0_filter_and_index_blocks_in_cache,
     jboolean jpin_top_level_index_and_filter, jbyte jindex_type_value,
     jbyte jdata_block_index_type_value,
-    jdouble jdata_block_hash_table_util_ratio, jbyte jchecksum_type_value,
+    jbyte jchecksum_type_value,
     jboolean jno_block_cache, jlong jblock_cache_handle,
     jlong jpersistent_cache_handle, jlong jblock_size,
     jint jblock_size_deviation, jint jblock_restart_interval,
@@ -79,8 +79,6 @@ jlong Java_org_rocksdb_BlockBasedTableConfig_newTableFactoryHandle(
   options.data_block_index_type =
       ROCKSDB_NAMESPACE::DataBlockIndexTypeJni::toCppDataBlockIndexType(
           jdata_block_index_type_value);
-  options.data_block_hash_table_util_ratio =
-      static_cast<double>(jdata_block_hash_table_util_ratio);
   options.checksum = ROCKSDB_NAMESPACE::ChecksumTypeJni::toCppChecksumType(
       jchecksum_type_value);
   options.no_block_cache = static_cast<bool>(jno_block_cache);

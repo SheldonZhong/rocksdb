@@ -704,15 +704,10 @@ DEFINE_int64(prepopulate_block_cache, 0,
              "Pre-populate hot/warm blocks in block cache. 0 to disable and 1 "
              "to insert during flush");
 
-DEFINE_bool(use_data_block_hash_index, false,
-            "if use kDataBlockBinaryAndHash "
+DEFINE_bool(use_disci_bit_block_index, false,
+            "if use kDataBlockDiscBit "
             "instead of kDataBlockBinarySearch. "
             "This is valid if only we use BlockTable");
-
-DEFINE_double(data_block_hash_table_util_ratio, 0.75,
-              "util ratio for data block hash index table. "
-              "This is only valid if use_data_block_hash_index is "
-              "set to true");
 
 DEFINE_int64(compressed_cache_size, -1,
              "Number of bytes to use as a cache of compressed data.");
@@ -4466,15 +4461,13 @@ class Benchmark {
           fprintf(stderr, "Unknown prepopulate block cache mode\n");
       }
       block_based_options.prepopulate_block_cache = prepopulate_block_cache;
-      if (FLAGS_use_data_block_hash_index) {
+      if (FLAGS_use_disc_bit_block_index) {
         block_based_options.data_block_index_type =
-            ROCKSDB_NAMESPACE::BlockBasedTableOptions::kDataBlockBinaryAndHash;
+            ROCKSDB_NAMESPACE::BlockBasedTableOptions::kDataBlockDiscBit;
       } else {
         block_based_options.data_block_index_type =
             ROCKSDB_NAMESPACE::BlockBasedTableOptions::kDataBlockBinarySearch;
       }
-      block_based_options.data_block_hash_table_util_ratio =
-          FLAGS_data_block_hash_table_util_ratio;
       if (FLAGS_read_cache_path != "") {
         Status rc_status;
 

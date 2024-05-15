@@ -372,7 +372,7 @@ bool DataBlockIter::SeekForGetImpl(const Slice& target) {
   Slice target_user_key = ExtractUserKey(target);
 
   // TODO: make this conditional on options
-  uint32_t restart_index = disc_bit_block_index_->Lookup(target_user_key);
+  size_t restart_index = disc_bit_block_index_->Lookup(target_user_key);
 
   // check if the key is in the restart_interval
   assert(restart_index < num_restarts_);
@@ -812,10 +812,10 @@ bool BlockIter<TValue>::DiscBitSeek(const Slice& target, uint32_t* index,
   assert(disc_bit_block_index_->Valid());
 
   const uint64_t pkey = disc_bit_block_index_->SliceExtract(target);
-  const int64_t pos = disc_bit_block_index_->PkeyLookup(pkey);
+  const size_t pos = disc_bit_block_index_->PartialKeyLookup(pkey);
 
   // key access
-  uint32_t region_offset = GetRestartPoint(static_cast<uint32_t>(pos));
+  uint32_t region_offset = GetRestartPoint(pos);
 
   uint32_t shared, non_shared;
   const char* key_ptr = DecodeKeyFunc()(
@@ -830,13 +830,13 @@ bool BlockIter<TValue>::DiscBitSeek(const Slice& target, uint32_t* index,
   int cmp = CompareCurrentKey(target);
 
   if (cmp == 0) {
-    *index = static_cast<uint32_t>(pos);
+    *index = pos;
     // The target key is found. The iterator is positioned at the target key.
     *skip_linear_scan = true;
     return true;
   }
 
-  *index = disc_bit_block_index_->FinishSeek(target, probe_key, pos, pkey, cmp);
+  *index = disc_bit_block_index_->FinishSeek(target, probe_key, pos, cmp);
   return true;
 }
 
@@ -1088,7 +1088,7 @@ Block::Block(BlockContents&& contents, size_t read_amp_bytes_per_bit,
           size_ = 0;
         }
         break;
-      case BlockBasedTableOptions::kDataBlockDBit:
+      case BlockBasedTableOptions::kDataBlockDiscBit:
         size_t index_size;
         index_size = disc_bit_block_index_.Initialize(
                   data_, size_ - sizeof(uint32_t), num_restarts_);

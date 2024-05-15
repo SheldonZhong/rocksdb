@@ -60,7 +60,7 @@ BlockBuilder::BlockBuilder(
   switch (index_type) {
     case BlockBasedTableOptions::kDataBlockBinarySearch:
       break;
-    case BlockBasedTableOptions::kDataBlockDBit:
+    case BlockBasedTableOptions::kDataBlockDiscBit:
       disc_bit_block_index_builder_.Initialize();
       break;
     default:
@@ -136,7 +136,7 @@ Slice BlockBuilder::Finish() {
   // hash index checks for the max block size supported by hash index
   if (disc_bit_block_index_builder_.Valid()) {
     disc_bit_block_index_builder_.Finish(buffer_);
-    index_type = BlockBasedTableOptions::kDataBlockDBit;
+    index_type = BlockBasedTableOptions::kDataBlockDiscBit;
   }
 
   // footer is a packed format of data_block_index_type and num_restarts
