@@ -110,17 +110,18 @@ void DiscBitBlockIndexBuilder::Finish(std::string& buffer) {
 size_t DiscBitBlockIndex::Initialize(const char* data, size_t size,
                                     uint32_t num_restarts) {
   num_restarts_ = num_restarts;
+  num_ranks_ = num_restarts - 1;
   uint16_t mask_size = DecodeFixed16(data + size - sizeof(uint16_t));
   const char* const partial_mask = data + size - sizeof(uint16_t) - mask_size;
   partial_mask_.append(partial_mask, mask_size);
-  ranks_ = reinterpret_cast<const uint8_t*>(partial_mask) - num_restarts_;
+  ranks_ = reinterpret_cast<const uint8_t*>(partial_mask) - num_ranks_;
 
   for (int i = 0; i < mask_size; i++) {
     const uint8_t mask = partial_mask_[i];
     max_rank_ += BitsSetToOne(mask);
   }
 
-  return mask_size + sizeof(uint16_t) + num_restarts_;
+  return mask_size + sizeof(uint16_t) + num_ranks_;
 }
 
 uint64_t DiscBitBlockIndex::SliceExtract(const Slice& key) const {
@@ -148,7 +149,7 @@ uint64_t DiscBitBlockIndex::SliceExtract(const Slice& key) const {
 
 size_t DiscBitBlockIndex::PartialKeyLookup(uint64_t pkey) const {
   size_t pos = 0;
-  for (size_t i = 0; i < num_restarts_;) {
+  for (size_t i = 0; i < num_ranks_;) {
     const uint8_t rank = ranks_[i];
     const uint64_t mask = 1lu << (max_rank_ - 1 - rank);
 
@@ -156,7 +157,7 @@ size_t DiscBitBlockIndex::PartialKeyLookup(uint64_t pkey) const {
       i++;
       pos = i;
     } else {
-      while (i < num_restarts_ && ranks_[i] >= rank) {
+      while (i < num_ranks_ && ranks_[i] >= rank) {
         i++;
       }
     }
@@ -191,13 +192,14 @@ int64_t DiscBitBlockIndex::FinishSeek(const Slice& key,
     }
   } else {
     // probe_key > key
-    while (pos < num_restarts_) {
+    while (pos < num_ranks_) {
       const uint8_t rank = ranks_[pos];
+      pos++;
       if (rank < pkey_lcp) {
         break;
       }
-      pos++;
     }
+    pos++;
   }
   return pos;
 }
