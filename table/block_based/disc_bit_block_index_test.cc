@@ -113,6 +113,69 @@ TEST(DiscBitBlockIndex, PointQuery) {
   }
 }
 
+TEST(DiscBitBlockIndex, RangeQuery) {
+  DiscBitBlockIndexBuilder builder;
+  builder.Initialize();
+
+  std::vector<std::string> keys;
+  std::vector<std::string> values;
+  std::vector<std::string> inserted_keys;
+
+  int num_keys = 100;
+  GenerateRandomKVs(&keys, &values, 0, 3 * num_keys + 1, 1, 0, 1);
+
+  for (int i = 0; i < num_keys; i++) {
+    builder.Add(Slice(keys[3 * i]));
+    inserted_keys.emplace_back(keys[3 * i]);
+  }
+
+  builder.Add(Slice(keys[3 * num_keys]));
+  inserted_keys.emplace_back(keys[3 * num_keys]);
+
+  std::string buffer;
+  builder.Finish(buffer);
+
+  Slice data(buffer);
+  DiscBitBlockIndex index;
+  index.Initialize(data.data(), data.size(), inserted_keys.size());
+
+  const Comparator *icmp = BytewiseComparator();
+
+  for (int i = 0; i < num_keys; i++) {
+    uint64_t pkey = index.SliceExtract(Slice(keys[3 * i]));
+    size_t pos = index.PartialKeyLookup(pkey);
+
+    ASSERT_EQ(i, pos);
+
+    // non-existing keys
+    Slice query_key1(keys[3 * i + 1]);
+    pkey = index.SliceExtract(query_key1);
+    pos = index.PartialKeyLookup(pkey);
+
+    // key access
+    Slice probe_key1(inserted_keys[pos]);
+
+    int cmp = icmp->Compare(probe_key1, query_key1);
+    ASSERT_NE(cmp, 0);
+
+    pos = index.FinishSeek(query_key1, probe_key1, pos, -cmp);
+    ASSERT_EQ(pos, i + 1);
+
+    Slice query_key2(keys[3 * i + 2]);
+    pkey = index.SliceExtract(query_key2);
+    pos = index.PartialKeyLookup(pkey);
+
+    // key access
+    Slice probe_key2(inserted_keys[pos]);
+
+    cmp = icmp->Compare(probe_key2, query_key2);
+    ASSERT_NE(cmp, 0);
+
+    pos = index.FinishSeek(query_key2, probe_key2, pos, -cmp);
+    ASSERT_EQ(pos, i + 1);
+  }
+}
+
 // Add more test cases as needed
 }  // namespace ROCKSDB_NAMESPACE
 
