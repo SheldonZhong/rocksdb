@@ -836,7 +836,7 @@ bool BlockIter<TValue>::DiscBitSeek(const Slice& target, uint32_t* index,
     return true;
   }
 
-  *index = disc_bit_block_index_->FinishSeek(target, probe_key, pos, cmp);
+  *index = disc_bit_block_index_->FinishSeek(target, probe_key, pos, -cmp);
   return true;
 }
 
