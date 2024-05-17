@@ -6009,14 +6009,14 @@ TEST_F(BBTTailPrefetchTest, FilePrefetchBufferMinOffset) {
   ASSERT_EQ(480, buffer.min_offset_read());
 }
 
-TEST_P(BlockBasedTableTest, DataBlockHashIndex) {
+TEST_P(BlockBasedTableTest, DiscBitBlockIndex) {
   const int kNumKeys = 500;
   const int kKeySize = 8;
   const int kValSize = 40;
 
   BlockBasedTableOptions table_options = GetBlockBasedTableOptions();
   table_options.data_block_index_type =
-      BlockBasedTableOptions::kDataBlockBinaryAndHash;
+      BlockBasedTableOptions::kDataBlockDiscBit;
 
   Options options;
   options.comparator = BytewiseComparator();

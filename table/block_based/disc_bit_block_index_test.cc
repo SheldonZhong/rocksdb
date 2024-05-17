@@ -92,7 +92,8 @@ TEST(DiscBitBlockIndex, PointQuery) {
 
   Slice data(buffer);
   DiscBitBlockIndex index;
-  index.Initialize(data.data(), data.size(), num_keys);
+  size_t index_size = index.Initialize(data.data(), data.size(), num_keys);
+  ASSERT_EQ(index_size, data.size());
 
   for (int i = 0; i < num_keys; i++) {
     size_t pos = index.Lookup(Slice(keys[i]));

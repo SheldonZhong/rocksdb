@@ -299,7 +299,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinarySearch,
             BlockBasedTableOptions::DataBlockIndexType::
-                kDataBlockBinaryAndHash)));
+                kDataBlockDiscBit)));
 
 // A slow and accurate version of BlockReadAmpBitmap that simply store
 // all the marked ranges in a set.
@@ -1085,7 +1085,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinarySearch,
             BlockBasedTableOptions::DataBlockIndexType::
-                kDataBlockBinaryAndHash),
+                kDataBlockDiscBit),
         ::testing::Values(0, 1, 2, 4, 8) /* protection_bytes_per_key */,
         ::testing::Values(1, 2, 3, 8, 16) /* restart_interval */,
         ::testing::Values(false, true)) /* delta_encoding */,
@@ -1231,7 +1231,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinarySearch,
             BlockBasedTableOptions::DataBlockIndexType::
-                kDataBlockBinaryAndHash),
+                kDataBlockDiscBit),
         ::testing::Values(0, 1, 2, 4, 8), ::testing::Values(1, 3, 8, 16),
         ::testing::Values(true, false), ::testing::Values(true, false)),
     [](const testing::TestParamInfo<
@@ -1490,7 +1490,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinarySearch,
             BlockBasedTableOptions::DataBlockIndexType::
-                kDataBlockBinaryAndHash),
+                kDataBlockDiscBit),
         ::testing::Values(4, 8) /* block_protection_bytes_per_key */,
         ::testing::Values(1, 3, 8, 16) /* restart_interval */,
         ::testing::Values(false, true)),
@@ -1539,7 +1539,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinarySearch,
             BlockBasedTableOptions::DataBlockIndexType::
-                kDataBlockBinaryAndHash),
+                kDataBlockDiscBit),
         ::testing::Values(4, 8) /* block_protection_bytes_per_key */,
         ::testing::Values(1, 3, 8, 16) /* restart_interval */,
         ::testing::Values(true, false), ::testing::Values(true, false)),

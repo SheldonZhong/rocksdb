@@ -167,14 +167,14 @@ size_t DiscBitBlockIndex::PartialKeyLookup(uint64_t pkey) const {
 }
 
 // cmp should be the result of cmp(key, probe_key)
-int64_t DiscBitBlockIndex::FinishSeek(const Slice& key,
+size_t DiscBitBlockIndex::FinishSeek(const Slice& key,
                                       const Slice& probe_key,
                                       size_t probe_pos,
                                       int cmp) const {
   if (cmp == 0) {
     return probe_pos;
   }
-  int64_t pkey_lcp = PartialKeyLCP(key, probe_key);
+  size_t pkey_lcp = PartialKeyLCP(key, probe_key);
   // ignoring all corner cases
 
   size_t pos = probe_pos;
@@ -202,7 +202,7 @@ int64_t DiscBitBlockIndex::FinishSeek(const Slice& key,
   return pos;
 }
 
-int64_t DiscBitBlockIndex::PartialKeyLCP(const Slice& target, const Slice& key) const {
+size_t DiscBitBlockIndex::PartialKeyLCP(const Slice& target, const Slice& key) const {
   const size_t mask_len = partial_mask_.size();
   size_t lcp = 0;
 
