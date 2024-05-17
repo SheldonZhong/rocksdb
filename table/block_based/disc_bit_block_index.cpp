@@ -57,7 +57,7 @@ void DiscBitBlockIndexBuilder::Reset() {
 }
 
 void DiscBitBlockIndexBuilder::Initialize() {
-
+  valid_ = true;
 }
 
 size_t DiscBitBlockIndexBuilder::EstimateSize() const {
@@ -65,7 +65,7 @@ size_t DiscBitBlockIndexBuilder::EstimateSize() const {
 }
 
 bool DiscBitBlockIndexBuilder::Valid() const {
-  return true;
+  return valid_;
 }
 
 void DiscBitBlockIndexBuilder::Finish(std::string& buffer) {
