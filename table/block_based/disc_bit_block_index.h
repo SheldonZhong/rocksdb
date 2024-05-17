@@ -36,7 +36,8 @@ class DiscBitBlockIndexBuilder {
  public:
   DiscBitBlockIndexBuilder()
   : unique_(0),
-    counter_(0) {}
+    counter_(0),
+    valid_(false) {}
 
   void Initialize();
 
@@ -58,6 +59,7 @@ class DiscBitBlockIndexBuilder {
   size_t estimate_size_;
   int unique_;
   int counter_;
+  bool valid_;
 };
 
 class DiscBitBlockIndex {
