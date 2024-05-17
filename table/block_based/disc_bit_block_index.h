@@ -75,7 +75,7 @@ class DiscBitBlockIndex {
 
   size_t Lookup(const Slice& key) const;
 
-  int64_t FinishSeek(const Slice& key, const Slice& probe_key,
+  size_t FinishSeek(const Slice& key, const Slice& probe_key,
                 size_t probe_pos, int cmp) const;
 
   size_t PartialKeyLookup(uint64_t pkey) const;
@@ -90,7 +90,7 @@ class DiscBitBlockIndex {
   size_t num_restarts_;
   std::string partial_mask_;
 
-  int64_t PartialKeyLCP(const Slice& target, const Slice& key) const;
+  size_t PartialKeyLCP(const Slice& target, const Slice& key) const;
 };
 
 }

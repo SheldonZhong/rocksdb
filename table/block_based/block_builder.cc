@@ -237,13 +237,12 @@ inline void BlockBuilder::AddWithLastKeyImpl(const Slice& key,
     buffer_.append(value.data(), value.size());
   }
 
-  // TODO(yuzhangyu): make user defined timestamp work with block hash index.
-  if (disc_bit_block_index_builder_.Valid()) {
+  if (counter_ == 0 && disc_bit_block_index_builder_.Valid()) {
     // Only data blocks should be using `kDataBlockBinaryAndHash` index type.
     // And data blocks should always be built with internal keys instead of
     // user keys.
     assert(!is_user_key_);
-    disc_bit_block_index_builder_.Add(ExtractUserKey(key));
+    disc_bit_block_index_builder_.Add(key);
   }
 
   counter_++;

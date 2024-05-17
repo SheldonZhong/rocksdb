@@ -313,9 +313,7 @@ void DataBlockIter::SeekImpl(const Slice& target) {
   uint32_t index = 0;
   bool skip_linear_scan = false;
 
-  // TODO: make this conditional on options
-  // bool ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
-  bool ok = DiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+  bool ok = BinaryOrDiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
 
   if (!ok) {
     return;
@@ -333,118 +331,12 @@ void MetaBlockIter::SeekImpl(const Slice& target) {
   uint32_t index = 0;
   bool skip_linear_scan = false;
 
-  // TODO: make this conditional on options
-  // bool ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
-  bool ok = DiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+  bool ok = BinaryOrDiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
 
   if (!ok) {
     return;
   }
   FindKeyAfterBinarySeek(seek_key, index, skip_linear_scan);
-}
-
-// Optimized Seek for point lookup for an internal key `target`
-// target = "seek_user_key @ type | seqno".
-//
-// For any type other than kTypeValue, kTypeDeletion, kTypeSingleDeletion,
-// kTypeBlobIndex, kTypeWideColumnEntity, kTypeValuePreferredSeqno or
-// kTypeMerge, this function behaves identically to Seek().
-//
-// For any type in kTypeValue, kTypeDeletion, kTypeSingleDeletion,
-// kTypeBlobIndex, kTypeWideColumnEntity, kTypeValuePreferredSeqno or
-// kTypeMerge:
-//
-// If the return value is FALSE, iter location is undefined, and it means:
-// 1) there is no key in this block falling into the range:
-//    ["seek_user_key @ type | seqno", "seek_user_key @ kTypeDeletion | 0"],
-//    inclusive; AND
-// 2) the last key of this block has a greater user_key from seek_user_key
-//
-// If the return value is TRUE, iter location has two possibilities:
-// 1) If iter is valid, it is set to a location as if set by SeekImpl(target).
-//    In this case, it points to the first key with a larger user_key or a
-//    matching user_key with a seqno no greater than the seeking seqno.
-// 2) If the iter is invalid, it means that either all the user_key is less
-//    than the seek_user_key, or the block ends with a matching user_key but
-//    with a smaller [ type | seqno ] (i.e. a larger seqno, or the same seqno
-//    but larger type).
-bool DataBlockIter::SeekForGetImpl(const Slice& target) {
-  Slice target_user_key = ExtractUserKey(target);
-
-  // TODO: make this conditional on options
-  size_t restart_index = disc_bit_block_index_->Lookup(target_user_key);
-
-  // check if the key is in the restart_interval
-  assert(restart_index < num_restarts_);
-  SeekToRestartPoint(restart_index);
-  current_ = GetRestartPoint(restart_index);
-  cur_entry_idx_ =
-      static_cast<int32_t>(restart_index * block_restart_interval_) - 1;
-
-  uint32_t limit = restarts_;
-  if (restart_index + 1 < num_restarts_) {
-    limit = GetRestartPoint(restart_index + 1);
-  }
-  while (current_ < limit) {
-    ++cur_entry_idx_;
-    bool shared;
-    // Here we only linear seek the target key inside the restart interval.
-    // If a key does not exist inside a restart interval, we avoid
-    // further searching the block content across restart interval boundary.
-    //
-    // TODO(fwu): check the left and right boundary of the restart interval
-    // to avoid linear seek a target key that is out of range.
-    if (!ParseNextDataKey(&shared) || CompareCurrentKey(target) >= 0) {
-      // we stop at the first potential matching user key.
-      break;
-    }
-    // If the loop exits due to CompareCurrentKey(target) >= 0, then current key
-    // exists, and its checksum verification will be done in UpdateKey() called
-    // in SeekForGet().
-    // TODO(cbi): If this loop exits with current_ == restart_, per key-value
-    //  checksum will not be verified in UpdateKey() since Valid()
-    //  will return false.
-  }
-
-  if (current_ == restarts_) {
-    // Search reaches to the end of the block. There are three possibilities:
-    // 1) there is only one user_key match in the block (otherwise collision).
-    //    the matching user_key resides in the last restart interval, and it
-    //    is the last key of the restart interval and of the block as well.
-    //    ParseNextKey() skipped it as its [ type | seqno ] is smaller.
-    //
-    // 2) The seek_key is not found in the HashIndex Lookup(), i.e. kNoEntry,
-    //    AND all existing user_keys in the restart interval are smaller than
-    //    seek_user_key.
-    //
-    // 3) The seek_key is a false positive and happens to be hashed to the
-    //    last restart interval, AND all existing user_keys in the restart
-    //    interval are smaller than seek_user_key.
-    //
-    // The result may exist in the next block each case, so we return true.
-    return true;
-  }
-
-  if (icmp_->user_comparator()->Compare(raw_key_.GetUserKey(),
-                                        target_user_key) != 0) {
-    // the key is not in this block and cannot be at the next block either.
-    return false;
-  }
-
-  // Here we are conservative and only support a limited set of cases
-  ValueType value_type = ExtractValueType(raw_key_.GetInternalKey());
-  if (value_type != ValueType::kTypeValue &&
-      value_type != ValueType::kTypeDeletion &&
-      value_type != ValueType::kTypeMerge &&
-      value_type != ValueType::kTypeSingleDeletion &&
-      value_type != ValueType::kTypeBlobIndex &&
-      value_type != ValueType::kTypeWideColumnEntity &&
-      value_type != ValueType::kTypeValuePreferredSeqno) {
-    SeekImpl(target);
-  }
-
-  // Result found, and the iter is correctly set.
-  return true;
 }
 
 void IndexBlockIter::SeekImpl(const Slice& target) {
@@ -480,12 +372,9 @@ void IndexBlockIter::SeekImpl(const Slice& target) {
     // search simply lands at the right place.
     skip_linear_scan = true;
   } else if (value_delta_encoded_) {
-    // TODO: make this conditional on options
-    // ok = BinarySeek<DecodeKeyV4>(seek_key, &index, &skip_linear_scan);
-    ok = DiscBitSeek<DecodeKeyV4>(seek_key, &index, &skip_linear_scan);
+    ok = BinaryOrDiscBitSeek<DecodeKeyV4>(seek_key, &index, &skip_linear_scan);
   } else {
-    // ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
-    ok = DiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
+    ok = BinaryOrDiscBitSeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
   }
 
   if (!ok) {
@@ -502,6 +391,7 @@ void DataBlockIter::SeekForPrevImpl(const Slice& target) {
   }
   uint32_t index = 0;
   bool skip_linear_scan = false;
+  // TODO: investigate this implementation
   bool ok = BinarySeek<DecodeKey>(seek_key, &index, &skip_linear_scan);
 
   if (!ok) {
@@ -836,7 +726,13 @@ bool BlockIter<TValue>::DiscBitSeek(const Slice& target, uint32_t* index,
     return true;
   }
 
-  *index = disc_bit_block_index_->FinishSeek(target, probe_key, pos, -cmp);
+  size_t final_pos =
+      disc_bit_block_index_->FinishSeek(target, probe_key, pos, -cmp);
+  if (final_pos >= num_restarts_) {
+    *index = final_pos - 1;
+  } else {
+    *index = final_pos;
+  }
   return true;
 }
 
@@ -1093,7 +989,8 @@ Block::Block(BlockContents&& contents, size_t read_amp_bytes_per_bit,
         index_size = disc_bit_block_index_.Initialize(
                   data_, size_ - sizeof(uint32_t), num_restarts_);
 
-        restart_offset_ = size_ - sizeof(uint32_t) - index_size;
+        restart_offset_ = size_ - sizeof(uint32_t) - index_size -
+                          num_restarts_ * sizeof(uint32_t);
 
         if (restart_offset_ > size_ - sizeof(uint32_t)) {
           // The size is too small for NumRestarts() and therefore

@@ -682,6 +682,16 @@ class BlockIter : public InternalIteratorBase<TValue> {
   inline bool DiscBitSeek(const Slice& target, uint32_t* index,
                           bool* is_index_key_result);
 
+  template <typename DecodeKeyFunc>
+  inline bool BinaryOrDiscBitSeek(const Slice& target, uint32_t* index,
+                          bool* is_index_key_result) {
+    if (disc_bit_block_index_ != nullptr) {
+      return DiscBitSeek<DecodeKeyFunc>(target, index, is_index_key_result);
+    } else {
+      return BinarySeek<DecodeKeyFunc>(target, index, is_index_key_result);
+    }
+  }
+
   // Find the first key in restart interval `index` that is >= `target`.
   // If there is no such key, iterator is positioned at the first key in
   // restart interval `index + 1`.
@@ -734,14 +744,9 @@ class DataBlockIter final : public BlockIter<Slice> {
 #ifndef NDEBUG
     if (TEST_Corrupt_Callback("DataBlockIter::SeekForGet")) return true;
 #endif
-    if (!disc_bit_block_index_) {
-      SeekImpl(target);
-      UpdateKey();
-      return true;
-    }
-    bool res = SeekForGetImpl(target);
+    SeekImpl(target);
     UpdateKey();
-    return res;
+    return true;
   }
 
   void Invalidate(const Status& s) override {
