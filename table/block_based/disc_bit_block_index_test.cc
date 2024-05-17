@@ -51,40 +51,27 @@ void GenerateRandomKVs(std::vector<std::string> *keys,
   }
 }
 
-// Define a test fixture
-class DiscBitBlockIndexTest : public ::testing::Test {
- protected:
-  // Set up the test fixture
-  void SetUp() override {
-    // Perform any necessary setup steps before each test
+void GenerateRandomSharedPrefixKeys(std::vector<std::string> *keys,
+                                    const int num_keys) {
+  Random rnd(404);
+
+  int generated_keys = 0;
+  while (generated_keys < num_keys) {
+    int prefix = generated_keys;
+    uint32_t num_shared_prefix = rnd.Uniform(10);
+    for (uint32_t i = 0; i < num_shared_prefix; i++) {
+      uint32_t var_len = rnd.Uniform(20);
+      std::string key = GenerateInternalKey(prefix, i, var_len, &rnd);
+      keys->emplace_back(key);
+      generated_keys++;
+
+      if (rnd.OneIn(2)) {
+        key.append(rnd.RandomString(5));
+        keys->emplace_back(key);
+        generated_keys++;
+      }
+    }
   }
-
-  // Tear down the test fixture
-  void TearDown() override {
-    // Perform any necessary cleanup steps after each test
-  }
-
-  // Define any helper functions or member variables that you need for your
-  // tests
-};
-
-// Define your test cases
-TEST_F(DiscBitBlockIndexTest, TestName1) {
-  // Arrange: Set up any necessary preconditions for the test
-
-  // Act: Perform the operation you want to test
-
-  // Assert: Check the expected results
-  EXPECT_TRUE(true);  // Replace with your actual assertions
-}
-
-TEST_F(DiscBitBlockIndexTest, TestName2) {
-  // Arrange: Set up any necessary preconditions for the test
-
-  // Act: Perform the operation you want to test
-
-  // Assert: Check the expected results
-  EXPECT_TRUE(true);  // Replace with your actual assertions
 }
 
 TEST(DiscBitBlockIndex, PointQuery) {
@@ -174,6 +161,63 @@ TEST(DiscBitBlockIndex, RangeQuery) {
     pos = index.FinishSeek(query_key2, probe_key2, pos, -cmp);
     ASSERT_EQ(pos, i + 1);
   }
+}
+
+TEST(DiscBitBlockIndex, PrefixKeys) {
+  DiscBitBlockIndexBuilder builder;
+  builder.Initialize();
+
+  std::vector<std::string> keys;
+  std::vector<std::string> inserted_keys;
+
+  int num_keys = 300;
+  GenerateRandomSharedPrefixKeys(&keys, num_keys);
+
+  Random rnd(251);
+
+  for (int i = 0; i < num_keys; i++) {
+    if (rnd.OneIn(2)) {
+      builder.Add(Slice(keys[i]));
+      inserted_keys.emplace_back(keys[i]);
+    }
+  }
+
+  const size_t nr_inserted = inserted_keys.size();
+
+  std::string buffer;
+  builder.Finish(buffer);
+
+  Slice data(buffer);
+  DiscBitBlockIndex index;
+  index.Initialize(data.data(), data.size(), nr_inserted);
+
+  const Comparator *icmp = BytewiseComparator();
+
+  for (int i = 0; i < num_keys; i++) {
+    Slice query_key(keys[i]);
+    uint64_t pkey = index.SliceExtract(query_key);
+    size_t pos = index.PartialKeyLookup(pkey);
+
+    // key access
+    Slice probe_key(inserted_keys[pos]);
+
+    int cmp = icmp->Compare(probe_key, query_key);
+    if (cmp == 0) {
+      continue;
+    }
+
+    pos = index.FinishSeek(query_key, probe_key, pos, -cmp);
+
+    ASSERT_TRUE(pos <= nr_inserted);
+
+    if (pos == nr_inserted) {
+      ASSERT_TRUE(icmp->Compare(query_key, Slice(inserted_keys[nr_inserted-1])) > 0);
+      continue;
+    }
+
+    ASSERT_TRUE(icmp->Compare(query_key, Slice(inserted_keys[pos])) < 0);
+  }
+
 }
 
 // Add more test cases as needed
