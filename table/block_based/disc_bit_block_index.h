@@ -51,6 +51,8 @@ class DiscBitBlockIndexBuilder {
 
   size_t EstimateSize() const;
 
+  size_t NumRestarts() const { return counter_; }
+
  private:
   std::string partial_mask_;
   std::vector<std::pair<size_t, uint8_t>> lcp_mask_pairs_;
@@ -58,7 +60,7 @@ class DiscBitBlockIndexBuilder {
 
   size_t estimate_size_;
   int unique_;
-  int counter_;
+  size_t counter_;
   bool valid_;
 };
 
