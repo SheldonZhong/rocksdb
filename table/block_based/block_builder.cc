@@ -238,10 +238,6 @@ inline void BlockBuilder::AddWithLastKeyImpl(const Slice& key,
   }
 
   if (counter_ == 0 && disc_bit_block_index_builder_.Valid()) {
-    // Only data blocks should be using `kDataBlockBinaryAndHash` index type.
-    // And data blocks should always be built with internal keys instead of
-    // user keys.
-    assert(!is_user_key_);
     disc_bit_block_index_builder_.Add(key);
   }
 

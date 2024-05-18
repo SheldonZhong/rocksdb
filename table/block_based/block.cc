@@ -728,10 +728,8 @@ bool BlockIter<TValue>::DiscBitSeek(const Slice& target, uint32_t* index,
 
   size_t final_pos =
       disc_bit_block_index_->FinishSeek(target, probe_key, pos, -cmp);
-  if (final_pos >= num_restarts_) {
+  if (final_pos > 0) {
     *index = final_pos - 1;
-  } else {
-    *index = final_pos;
   }
   return true;
 }
