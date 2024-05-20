@@ -1429,7 +1429,7 @@ if(WITH_TESTS)
         options/options_test.cc
         table/block_based/block_based_table_reader_test.cc
         table/block_based/block_test.cc
-        table/block_based/disci_bit_block_index_test.cc
+        table/block_based/disc_bit_block_index_test.cc
         table/block_based/full_filter_block_test.cc
         table/block_based/partitioned_filter_block_test.cc
         table/cleanable_test.cc

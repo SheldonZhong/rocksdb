@@ -723,7 +723,7 @@ DEFINE_uint32(uncache_aggressiveness,
               "obsolete. 0 = disabled, 1 = minimum, 100 = moderate, 10000 = "
               "normal max");
 
-DEFINE_bool(use_disci_bit_block_index, false,
+DEFINE_bool(use_disc_bit_block_index, false,
             "if use kDataBlockDiscBit "
             "instead of kDataBlockBinarySearch. "
             "This is valid if only we use BlockTable");
