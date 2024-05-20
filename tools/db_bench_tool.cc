@@ -704,7 +704,7 @@ DEFINE_int64(prepopulate_block_cache, 0,
              "Pre-populate hot/warm blocks in block cache. 0 to disable and 1 "
              "to insert during flush");
 
-DEFINE_bool(use_disci_bit_block_index, false,
+DEFINE_bool(use_disc_bit_block_index, false,
             "if use kDataBlockDiscBit "
             "instead of kDataBlockBinarySearch. "
             "This is valid if only we use BlockTable");
