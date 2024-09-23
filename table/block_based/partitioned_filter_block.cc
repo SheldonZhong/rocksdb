@@ -45,10 +45,7 @@ PartitionedFilterBlockBuilder::PartitionedFilterBlockBuilder(
           use_value_delta_encoding,
           BlockBasedTableOptions::kDataBlockBinarySearch /* index_type */,
           ts_sz,
-          persist_user_defined_timestamps, true /* is_user_key */),
-      p_index_builder_(p_index_builder),
-      keys_added_to_partition_(0),
-      total_added_in_built_(0) {
+          persist_user_defined_timestamps, true /* is_user_key */) {
   keys_per_partition_ = static_cast<uint32_t>(
       filter_bits_builder_->ApproximateNumEntries(partition_size));
   if (keys_per_partition_ < 1) {
