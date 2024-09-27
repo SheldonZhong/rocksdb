@@ -730,6 +730,9 @@ bool BlockIter<TValue>::DiscBitSeek(const Slice& target, uint32_t* index,
       disc_bit_block_index_->FinishSeek(target, probe_key, pos, -cmp);
   if (final_pos > 0) {
     *index = final_pos - 1;
+  } else {
+    *skip_linear_scan = true;
+    *index = 0;
   }
   return true;
 }
