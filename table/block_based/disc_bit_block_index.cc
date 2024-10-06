@@ -114,6 +114,11 @@ size_t DiscBitBlockIndex::Initialize(const char* data, size_t size,
   uint16_t mask_size = DecodeFixed16(data + size - sizeof(uint16_t));
   const char* const partial_mask = data + size - sizeof(uint16_t) - mask_size;
   partial_mask_.append(partial_mask, mask_size);
+  uint16_t round_up_size = (((mask_size + 7) >> 3) << 3);
+  for (size_t i = mask_size; i < round_up_size; i++) {
+    partial_mask_.push_back(0);
+  }
+
   ranks_ = reinterpret_cast<const uint8_t*>(partial_mask) - num_ranks_;
 
   for (int i = 0; i < mask_size; i++) {
@@ -128,18 +133,22 @@ uint64_t DiscBitBlockIndex::SliceExtract(const Slice& key) const {
   const size_t mask_len = partial_mask_.size();
   uint64_t out = 0;
 
-  for (size_t i = 0; i < mask_len; i++) {
-    if (partial_mask_[i] == 0) {
+  for (size_t i = 0; i < (mask_len >> 3); i++) {
+    const char * partial_mask = partial_mask_.c_str();
+    const uint64_t mask = reinterpret_cast<const uint64_t*>(partial_mask)[i];
+
+    if (mask == 0) {
       continue;
     }
 
-    const uint8_t mask = partial_mask_[i];
     const int shifts = BitsSetToOne(mask);
     out <<= shifts;
 
-    if (i < key.size()) {
-      const uint8_t byte = key[i];
-      const uint8_t extract = ParallelExtract(byte, mask);
+    if (i < (key.size() >> 3)) {
+      const uint64_t byte = reinterpret_cast<const uint64_t*>(key.data_)[i];
+      const uint64_t swapped_byte = EndianSwapValue(byte);
+      const uint64_t swapped_mask = EndianSwapValue(mask);
+      const uint64_t extract = ParallelExtract(swapped_byte, swapped_mask);
       out |= extract;
     }
   }

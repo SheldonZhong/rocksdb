@@ -29,12 +29,13 @@ inline T ParallelExtract(T v, T mask) {
   static_assert(!std::is_reference_v<T>, "use std::remove_reference_t");
 #ifdef __BMI2__
   static_assert(sizeof(T) <= sizeof(unsigned long long), "type too big");
-  if (sizeof(T) <= sizeof(unsigned long)) {
-    return static_cast<T>(_pext_u32(static_cast<unsigned int>(v),
-                                         static_cast<unsigned int>(mask)));
-  } else {
-    return static_cast<T>(_pext_u64(static_cast<unsigned long long>(v),
-                                         static_cast<unsigned long long>(mask)));
+  if constexpr (sizeof(T) <= 4) {
+    return static_cast<T>(_pext_u32(static_cast<uint32_t>(v),
+                                         static_cast<uint32_t>(mask)));
+  }
+  if constexpr (sizeof(T) <= 8) {
+    return static_cast<T>(_pext_u64(static_cast<uint64_t>(v),
+                                         static_cast<uint64_t>(mask)));
   }
 #else
   T rv = 0;

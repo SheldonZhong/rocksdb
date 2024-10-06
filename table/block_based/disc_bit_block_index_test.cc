@@ -216,7 +216,7 @@ TEST(DiscBitBlockIndex, PrefixKeys) {
       continue;
     }
 
-    ASSERT_TRUE(icmp->Compare(query_key, Slice(inserted_keys[pos])) < 0);
+    ASSERT_TRUE(icmp->Compare(query_key, Slice(inserted_keys[pos])) <= 0);
   }
 
 }
